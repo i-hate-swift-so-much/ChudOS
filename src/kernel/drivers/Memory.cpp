@@ -130,18 +130,12 @@ void* alloc_page(PageDetails page){
             (page.flags.flags) |
             (page.flags.Execute_Disable << 63);
 
-        char temp_char[22];
-        afstd::printf("------------\n");
-        //afstd::int_to_char_array_hex(reinterpret_cast<uintptr_t>(Page_Entry), temp_char, sizeof(temp_char));
-        afstd::int_to_char_array_hex(page.virtual_address, temp_char, sizeof(temp_char));
-        afstd::printf(temp_char);
-        afstd::printf("\n");
         
         *Page_Entry = new_entry;
 
         // must flush the TLB with invlpg, otherwise CPU wont know the page was updated
 
-        //asm volatile("invlpg (%0)" :: "r"(static_cast<uintptr_t>(page.virtual_address)) : "memory");
+        asm volatile("invlpg (%0)" :: "r"(static_cast<uintptr_t>(page.virtual_address)) : "memory");
     }
 
     PageEntries physicalData = ExtractPageEntries(page.physical_address);

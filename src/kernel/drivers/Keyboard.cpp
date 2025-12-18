@@ -63,6 +63,8 @@ void HandleKeyboardInterrupt(interrupt_frame_kernel* frame){
         return;
     }
 
+    
+
     if(ch && is_character){
         if(capslock || upper && ch >= 97 && ch <=122){
             ch-=32;

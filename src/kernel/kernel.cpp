@@ -58,43 +58,19 @@ void kernel_startup_textmode(VBEModeInfoBlock* vbe_info){
     afstd::printf(test_char);
     afstd::printf("\n");
 
-    afstd::int_to_char_array_hex(KernelTask.MemoryData.PageCount, test_char, sizeof(test_char));
-    afstd::printf(test_char);
-    afstd::printf("\n");
-
     uint64_t* test_alloc = reinterpret_cast<uint64_t*>(malloc(&KernelTask));
 
-    afstd::int_to_char_array_hex(KernelTask.MemoryData.PageCount, test_char, sizeof(test_char));
-    afstd::printf(test_char);
-    afstd::printf("\n");
-
-    uintptr_t addr = reinterpret_cast<uintptr_t>(test_alloc);
-    afstd::int_to_char_array_hex(addr, test_char, sizeof(test_char));
-    afstd::printf(test_char);
-    afstd::printf("\n");
-
+    // made for testing paging
+    *test_alloc = (uint64_t)0xFFULL;
     uint64_t test_read = *test_alloc;
-
-    uint64_t* fault = (uint64_t*)0x0000000050000000ULL;
-
-    uint64_t force_fault = *fault;
-
-    /*
-    PageDetails testPage;
-    PageEntries testPageEntries;
-    testPageEntries.PML4_Entry = 0;
-    testPageEntries.PDPT_Entry = 0;
-    testPageEntries.PD_Entry = 32;
-    testPageEntries.PT_Entry = 0;
-
-    testPage.physical_address = CalculatePageAddress(testPageEntries);
-    testPage.virtual_address = testPage.physical_address;
-    testPage.flags.flags = 0b00000011;
-    testPage.flags.Execute_Disable = false;
-    */
-    
-
-    //*test_alloc = 0;
+    if(test_read == 0xFFULL){
+        SetTextColor(GREEN, BLACK);
+        afstd::printf("If you're reading this, paging is correctly set up.\n");
+    }else{
+        SetTextColor(LRED, BLACK);
+        afstd::printf("If you're reading this, paging is incorrectly set up.\n");
+    }
+    SetTextColor(WHITE, BLACK);
 
     while (1){
 

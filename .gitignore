@@ -4,3 +4,4 @@ src/kernel/.DS_Store
 .vscode
 obj/*
 bin/*
+push.sh
