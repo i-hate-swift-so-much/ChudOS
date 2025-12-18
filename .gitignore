@@ -5,3 +5,4 @@ src/kernel/.DS_Store
 obj/*
 bin/*
 push.sh
+qemu.log
