@@ -1,7 +1,7 @@
 #include "KernelPanic.h"
 #include "Memory.h"
 
-extern "C" void KernelPanic(RegistersKernelError* regs){
+extern "C" void KernelPanic(InterruptRegistersError* regs){
     afstd::cls();
     SetTextColor(LRED, BLACK);
     char interrupt[22];
@@ -30,14 +30,7 @@ extern "C" void KernelPanic(RegistersKernelError* regs){
     
     SetTextColor(WHITE, BLACK);
     afstd::printf("\n");
-    afstd::printf(" PRESENT FAULT      :                  "); if(Present){ afstd::printf("TRUE   \n"); }else{ afstd::printf("FALSE  \n"); }
-    afstd::printf(" ACTION             :                  "); if(RW){ afstd::printf("WRITE  \n"); }else{ afstd::printf("READ   \n"); }
-    afstd::printf(" INITIATOR LEVEL    :                  "); if(User){ afstd::printf("USER   \n"); }else{ afstd::printf("KERNEL \n"); }
-    afstd::printf(" RESERVED FAULT     :                  "); if(Res){ afstd::printf("TRUE   \n"); }else{ afstd::printf("FALSE  \n"); }
-    afstd::printf(" INSTRUCTION FAULT  :                  "); if(Instruction){ afstd::printf("TRUE   \n"); }else{ afstd::printf("FALSE  \n"); } 
-    afstd::printf(" PROTECTION FAULT   :                  "); if(Instruction){ afstd::printf("TRUE   \n"); }else{ afstd::printf("FALSE  \n"); } 
-    afstd::printf(" SHADOW STACK FAULT :                  "); if(ShadowStack){ afstd::printf("TRUE   \n"); }else{ afstd::printf("FALSE  \n"); }
-    
+    afstd::printf("Unavailable for kernel panic.");
     DrawBox(0, 3, 46, 9, "Fault Details");
    
     char RIP_Value[22];

@@ -7,7 +7,7 @@ entryasflags := -f elf64
 ldflags_kernel := -Tkernel64.ld
 cflags := -m64 -I src/include -ffreestanding -nostdlib -c
 
-output_img := bin/ChudOS.img
+output_img := bin/ChudOS.iso
 
 bootloader_objs := obj/boot0.bin obj/boot1.bin
 boot0 := src/boot/boot0.s

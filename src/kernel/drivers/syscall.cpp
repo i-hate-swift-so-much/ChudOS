@@ -10,7 +10,7 @@ garbage struct being pushed, it will push the RegistersKernelCall struct which i
 the RegistersUsersCall struct, and does not feature RSP and SS, which will corrupt the stack.
 */
 
-extern "C" void handle_syscall(RegistersUsersCall regs){
+extern "C" void handle_syscall(InterruptRegisters regs){
     uint64_t eax_value = regs.rax;
     uint64_t ebx_value = regs.rbx;
     uint64_t ecx_value = regs.rcx;

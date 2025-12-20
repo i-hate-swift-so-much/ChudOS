@@ -49,6 +49,8 @@ uint8_t mem_GetBit(uint16_t PageDescriptorTable, uint16_t PageTable, uint16_t Pa
 }
 
 void InitMem(){
+    asm("cli");
+
     // allocate kernel memory
     for(int t = 0; t < KERNEL_PT_COUNT; t++){
         for(int p = 0; p < 512; p++){
@@ -62,7 +64,13 @@ void InitMem(){
     TaskMemoryDefinition KernelMemory;
     KernelMemory.BaseVirtualAddress = 0x0;
     KernelMemory.PageCount = KERNEL_PT_COUNT*512;
+    
+    KernelTask.ProcessID = 0;
     KernelTask.MemoryData = KernelMemory;
+    KernelTask.RequestedSleepCycle = 0;
+    KernelTask.Available = false;
+
+    asm("sti");
 }
 
 PageEntries ExtractPageEntries(uint64_t VirtualAddress){
@@ -93,6 +101,7 @@ uint64_t CalculatePageAddress(PageEntries entries){
 // Gets the entry address of a page for setting a virtual addresses data.
 // Does not account for large pages as those are unuseed by this OS.
 uint64_t* CalculatePagePhysicalEntryAddress(PageEntries* entries){
+    if(entries->PML4_Entry > 0 || entries->PDPT_Entry > 0 || entries->PD_Entry > 128 || entries->PT_Entry > 512){ return nullptr; };
     uint64_t* PML4_Pointer = reinterpret_cast<uint64_t*>(PML4_Physical + (entries->PML4_Entry * 8));
     uint64_t* PDPT_Pointer = reinterpret_cast<uint64_t*>((*PML4_Pointer & 0xFFFFFFFFF000ULL) + (entries->PDPT_Entry * 8));
     uint64_t* PD_Pointer = reinterpret_cast<uint64_t*>((*PDPT_Pointer & 0xFFFFFFFFF000ULL) + (entries->PD_Entry * 8));
@@ -126,7 +135,7 @@ void* alloc_page(PageDetails page){
         if(Page_Entry == nullptr){ afstd::printf("No page entry\n"); return nullptr; }
 
         uint64_t new_entry = 
-            (page.physical_address & (uint64_t)~0xFFFULL) |
+            (page.physical_address) |
             (page.flags.flags) |
             (page.flags.Execute_Disable << 63);
 
@@ -168,7 +177,7 @@ void* free_page(PageDetails page){
         uint64_t* Page_Entry = CalculatePagePhysicalEntryAddress(&Deconstructed);
         if(!Page_Entry){ return nullptr; }
         
-        uint64_t new_entry = 0x0000;
+        uint64_t new_entry = (uint64_t)0x0000;
 
         *Page_Entry = new_entry;
 
@@ -192,14 +201,13 @@ PageEntries FindNextFreePhysical(){
                 if(bit == 0){
                     ret.PDPT_Entry = PDPT_Entry;
                     ret.PD_Entry = PD_Entry;
-                    ret.PT_Entry = PT_Entry+1;
+                    ret.PT_Entry = PT_Entry;
                     
                     return ret;
                 }
             }
         }
     }
-    ret.PML4_Entry = 0xFF;
     return ret;
 }
 
@@ -222,12 +230,28 @@ void* malloc(Task* TaskDetails){
     
     NextPage.virtual_address = NextPageAddress;
 
-
     void* allocated = alloc_page(NextPage);
 
     if(allocated != nullptr) { TaskDetails->MemoryData.PageCount += 1; }
 
     return allocated;
+}
+
+
+/*
+    void* dest: Where to load the memory from src
+    const void* src: Where the memory loaded into dest comes from
+    size_t n: How many bytes should be loaded from src to dest
+*/
+void* memcpy(void* dest, const void* src, size_t n){
+    uint8_t* d = (uint8_t*)dest;
+    const uint8_t* s = (const uint8_t*)src;
+
+    while(n--){
+        *d++ = *s++;
+    }
+
+    return dest;
 }
 
 void* operator new(size_t size){
@@ -240,6 +264,8 @@ void* operator new(size_t size){
 PageDetails ParsePTE(uint64_t* PTE){
     PageDetails ret;
     
+    if(PTE == nullptr){ return ret; }
+
     uint64_t PhysicalAddress = (*PTE & 0xFFFFFFFFF000ULL);
     uint16_t flags = *PTE & 0x1FF;
     bool XD = *PTE >> 63;

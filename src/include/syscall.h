@@ -7,4 +7,4 @@
 #include <stdint.h>
 
 extern "C" void isr80_stub();
-extern "C" void handle_syscall(RegistersUsersCall regs);
+extern "C" void handle_syscall(InterruptRegisters regs);

@@ -74,8 +74,11 @@ void pic_unmask(uint8_t irq){
     if(irq < 8){
         port = PIC1_DATA;
     }else{
+        value = inb(PIC1_DATA) & ~(1 << 2);
+        outb(PIC1_DATA, value);
+
         port = PIC2_DATA;
-        irq-=8;
+        irq -= 8;
     }
     value=inb(port) & ~(1 << irq);
     outb(port, value);

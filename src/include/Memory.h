@@ -21,7 +21,7 @@
 // Defines 2MB worth of physical memory.
 // One struct takes up 512 bits of memory;
 struct PhysicalMemoryTable{
-    uint64_t PageBlocks[8];
+    uint64_t PageBlocks[8] = {0,0,0,0,0,0,0,0};
 }__attribute__((packed));
 
 // Defines 512 PMT's, the size of one struct is 32KB.
@@ -77,16 +77,19 @@ struct Task{
     uint32_t ProcessID;
     TaskMemoryDefinition MemoryData;
     HeapDesignator HeapData;
-    RegistersUsersCall SavedRegisters; // grabbed from "IDT.h", also used when an interrupt is triggered from userland
+    InterruptRegisters SavedRegisters; // grabbed from "IDT.h", also used when an interrupt is triggered from userland
     uint8_t MaxTicks; // how many cycles a task can run for, tasks run with sudo have 40, normal user tasks 20, and background taks 10
     uint8_t UsedTicks; // this is so the scheduler can keep track of how many ticks the program has been running for before switching
     uint8_t ProcessState; // defines how the program is running. e.g. active, asleep, new, ready, blocked.
     uint16_t WaitingReason; // defines why the program is waiting if the state is set to that.
     uint32_t SleepCycle; // how many cycles the program has been sleeping, used so the task can request to sleep
     uint32_t RequestedSleepCycle; // the program sets this so it "sleeps"
+    bool Available = false;
 }__attribute__((packed));
 
 extern Task KernelTask;
+extern Task TaskManager[512];
+
 
 uint8_t mem_GetBit(uint16_t PageDescriptorTable, uint16_t PageTable, uint16_t Page);
 
@@ -100,6 +103,8 @@ void* alloc_page(PageDetails page);
 void* free_page(PageDetails page); 
 
 void* malloc(Task* TaskDetails);
+
+void* memcpy(void* dest, const void* src, size_t n);
 
 uint64_t* CalculatePagePhysicalEntryAddress(PageEntries* entries);
 

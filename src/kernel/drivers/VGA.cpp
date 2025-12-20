@@ -131,9 +131,11 @@ void DrawDivider(int x, int y, int w, char* title){
     VGA_CUR_COLOR = init_cur_color;
 }
 
-void WriteLabel(char* string, int x, int y, int w){
-    size_t length = calculate_string_length(string)-1;
-
+void WriteLabel(char* label, char* value, int x, int y, int w){
+    size_t length = calculate_string_length(label)-1;
+    // TODO: make this into a function that prints one side of a label
+    // on the left half of this, then prints the value on the right half
+    // as seen in the exception screens
 }
 
 void WriteString(const char* string, int x, int y){

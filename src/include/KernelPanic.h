@@ -8,4 +8,4 @@
 #include "PIC.h"
 
 extern "C" void kernel_panic_stub();
-extern "C" void KernelPanic(RegistersKernelError* regs);
+extern "C" void KernelPanic(InterruptRegistersError* regs);

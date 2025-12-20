@@ -14,49 +14,55 @@
 
 void kernel_startup_textmode(VBEModeInfoBlock* vbe_info){
     VBEModeInfoBlock dereference = *vbe_info;
-    
+
     SetMainVBE(vbe_info);
+    
     afstd::cls();
-    afstd::printf("Entering the City of Dis\n");
-    afstd::printf("+------------------------------------------------------+\n");
-    afstd::printf("| Made by Cameron McLaughlin under the third rendition |\n|     of the GNU General Public License (GPL 3.0)      |\n|      In memory of King Terry Davis (1969-2018)       |\n");
-    afstd::printf("+------------------------------------------------------+\n");
-    afstd::printf("Remapping PIC...\n");
+
+    afstd::printf("\n");
+    afstd::printf_centered("Made by Cameron McLaughlin under the third rendition");
+    afstd::printf("\n");
+    afstd::printf_centered("of the GNU General Public License (GPL 3.0)");
+    afstd::printf("\n");
+    afstd::printf_centered("In memory of King Terry Davis (1969-2018)");
+    afstd::printf("\n\n");
+    DrawBox(0, 0, 80, 5, "ChudOS");
+
+    afstd::printf("Setting up interrupts\n");
     pic_remap(0x20, 0x28);
-    afstd::printf("Setting up IDT...\n");
     for(int i = 0; i < 256; i++){
         SetIDTEntry(i, (uint64_t)kernel_panic_stub, 0x08, 0x8E);
     }
-    afstd::printf("Succesfully Cleared IDT \n");
+    afstd::printf("Succesfully Cleared IDT\n");
     SetIDTEntry(0x06, (uint64_t)invalid_opcode_stub, 0x08, 0x8E);
     SetIDTEntry(0x0D, (uint64_t)gpf_stub, 0x08, 0x8E);
     SetIDTEntry(0x0E, (uint64_t)page_fault_stub, 0x08, 0x8E);
     SetIDTEntry(0x80, (uint64_t)isr80_stub, 0x08, 0x8E);
-    SetTextColor(GREEN, BLACK);
+    SetTextColor(LGREEN, BLACK);
     SetIDTEntry(0x20, (uint64_t)timer_interrupt_stub, 0x08, 0x8E);
+    SetIDTEntry(0x28, (uint64_t)sync_time_stub, 0x08, 0x8E);
+    LoadIDT();
     SetTimerFrequency(1000); // the timer will go off every 1 milisecond
+    outb(0x70, 0x8B);
+    char previous = inb(0x71);
+    outb(0x70, 0x8B);
+    outb(0x71, previous | 0x40);
+    pic_unmask(0x08); // for syncing time
     pic_unmask(0x00); // Timer
     afstd::printf("Succesfully set up Timer\n");
-    SetIDTEntry(0x21, (uint64_t)HandleKeyboardInterrupt, 0x08, 0x8E);
+    SetIDTEntry(0x21, (uint64_t)keyboard_stub, 0x08, 0x8E);
     pic_unmask(0x01); // Keyboard
     afstd::printf("Succesfully set up keyboard\n");
-    LoadIDT();
     afstd::printf("Succesfully loaded IDT\n");
     SetTextColor(WHITE, BLACK);
     afstd::printf("Enabling Interrupts\n");
     asm volatile("sti");
-    SetTextColor(GREEN, BLACK);
+    SetTextColor(LGREEN, BLACK);
     afstd::printf("Succesfully enabled interrupts\n");
     SetTextColor(WHITE, BLACK);
-    afstd::printf("Done!\n");
+    afstd::printf("Setting up paging\n");
 
     InitMem();
-    
-    char test_char[22];
-    afstd::int_to_char_array(mem_GetBit(0, 16, 1), test_char, sizeof(test_char));
-    afstd::printf("Mem (0,0,15,0): ");
-    afstd::printf(test_char);
-    afstd::printf("\n");
 
     uint64_t* test_alloc = reinterpret_cast<uint64_t*>(malloc(&KernelTask));
 
@@ -64,13 +70,26 @@ void kernel_startup_textmode(VBEModeInfoBlock* vbe_info){
     *test_alloc = (uint64_t)0xFFULL;
     uint64_t test_read = *test_alloc;
     if(test_read == 0xFFULL){
-        SetTextColor(GREEN, BLACK);
-        afstd::printf("If you're reading this, paging is correctly set up.\n");
+        SetTextColor(LGREEN, BLACK);
+        afstd::printf("Succesfully set up paging\n");
     }else{
         SetTextColor(LRED, BLACK);
-        afstd::printf("If you're reading this, paging is incorrectly set up.\n");
+        afstd::printf("Failed to set up paging, disabling system.\n");
+        asm(
+            "cli\n"
+            "1:\n\t"
+            "hlt\n"
+            "jmp 1b\n"
+            :::
+        );
     }
     SetTextColor(WHITE, BLACK);
+
+    afstd::printf("Press CTRL+ALT+ESC to force a kernel panic\n");
+    afstd::printf("Press CTRL+ALT+TAB to force a page fault\n");
+    afstd::printf("Press CTRL+ALT+LSHIFT to force an Invalid Opcode fault\n");
+    afstd::printf("Press CTRL+ALT+BACKSPACE to force a general protection fault\n\n");
+    DrawDivider(0, 18, 80);
 
     while (1){
 
@@ -92,15 +111,9 @@ static uint32_t test_image_data[100] = {
 
 void kernel_startup_pixelmode(VBEModeInfoBlock* vbe_info){
     SetMainVBE(vbe_info);
-    pic_remap(0x20, 0x28);
-    for(int i = 0; i < 256; i++){
-        SetIDTEntry(i, (uint64_t)kernel_panic_stub, 0x08, 0x8E);
-    }
-    SetIDTEntry(0x80, (uint64_t)isr80_stub, 0x08, 0x8E);
-    SetIDTEntry(0x21, (uint64_t)HandleKeyboardInterrupt, 0x08, 0x8E);
-    pic_unmask(0x01); // IRQ1
-    //ClearScreenPixelMode(0x000000);
-    //RunDiagnostics();
+
+    ClearScreenPixelMode(0x000000);
+    RunDiagnostics();
 
     while (1){
 

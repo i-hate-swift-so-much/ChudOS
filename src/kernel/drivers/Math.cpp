@@ -1,5 +1,4 @@
 #include "Math.h"
-#include "stdint.h"
 
 double sqrt(double n){
     // uses Newton-Raphson algorithm
@@ -27,4 +26,11 @@ int abs(int n){
        return -n;
     }
     return n;
+}
+
+uint64_t last_unsecure_64 = 4;
+
+uint64_t rand64(){
+    last_unsecure_64 = (6364136223846793005ULL*last_unsecure_64+1);
+    return last_unsecure_64;
 }
