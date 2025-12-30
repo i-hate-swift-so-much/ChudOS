@@ -7,6 +7,12 @@
 
 PCI_Device Devices[256];
 
+uint64_t TwoPieceBARtoPhysAddress(uint32_t BAR0, uint32_t BAR1){
+    uint64_t LOWER = ((uint64_t)BAR0); // the lower 32 bits of the address, indicated by BAR0, should be converted to a uint64_t and nothing else shall occur.
+    uint64_t UPPER = ((uint64_t)BAR1) << 32; // the upper 32 bits of the address, indicated by BAR1, should be shifted left 32 bits after being converted to a uint64_t to properly convert it.
+    return UPPER | LOWER; // Bitwise OR together the UPPER and LOWER variables to finish the addresses.
+}
+
 uint32_t PCI_CreateConfigAddress(uint8_t bus, uint8_t slot, uint8_t func, uint8_t offset){
     uint32_t lbus = (uint32_t)bus;
     uint32_t lslot = (uint32_t)slot;
@@ -223,26 +229,55 @@ PCI_Header_0x1 PCI_ReadHeader1(PCI_Common_Header common, uint8_t bus, uint8_t sl
 
 void ScanBusses(){
     uint8_t bus = 0;
+    PCI_Device Cur_Device;
+    PCI_Common_Header curHeader;
+    PCI_Header_0x0 header0;
+    PCI_Header_0x1 header1;
+    uint8_t ClassCode;
+    uint8_t SubClass;
+    uint8_t HeaderType;
+    uint8_t ProgIF;
+    bool header_type;
+
 
     for(uint8_t slot = 0; slot < 32; slot++){
-        PCI_Common_Header curHeader = PCI_ReadCommonHeader(bus, slot);
-        uint8_t ClassCode = curHeader.ClassCode;
-        uint8_t SubClass = curHeader.SubClass;
-        uint8_t HeaderType = curHeader.HeaderType;
-        uint8_t ProgIF = curHeader.ProgIF;
+        header0 = { };
+        header1 = { };
+        curHeader = PCI_ReadCommonHeader(bus, slot);
+        ClassCode = curHeader.ClassCode;
+        SubClass = curHeader.SubClass;
+        HeaderType = curHeader.HeaderType;
+        ProgIF = curHeader.ProgIF;
+
+        if(curHeader.VendorID = 0x0FFFF){
+            Cur_Device.Header = curHeader;
+            Cur_Device.Header0 = header0;
+            Cur_Device.Header1 = header1;
+            Cur_Device.header_type = header_type;
+            Cur_Device.present = false;
+
+            continue;
+        }
+        
 
         if(HeaderType == 0x00){
-            PCI_Header_0x0 header0 = PCI_ReadHeader0(curHeader, bus, slot);
+            header0 = PCI_ReadHeader0(curHeader, bus, slot);
+            header_type = false;
         }else if(HeaderType = 0x01){
-            PCI_Header_0x1 header1 = PCI_ReadHeader1(curHeader, bus, slot);
+            header1 = PCI_ReadHeader1(curHeader, bus, slot);
+            header_type = true;
         }
+
+        Cur_Device.Header = curHeader;
+        Cur_Device.Header0 = header0;
+        Cur_Device.Header1 = header1;
+        Cur_Device.header_type = header_type;
+        Cur_Device.present = true;
+
+        Devices[slot] = Cur_Device;
     }
 }
 
-void PCI_WriteCommand(){
-
-}
-
-void PCI_Init(){
+void PCI_Config_Write(uint8_t bus, uint8_t slot){
 
 }

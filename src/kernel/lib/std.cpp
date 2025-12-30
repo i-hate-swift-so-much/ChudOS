@@ -100,14 +100,19 @@ namespace afstd{
         curY = 0;
         ClearScreen();
     }
-    void int_to_char_array(int n, char* buffer, size_t buffer_size) {
+    void int_to_char_array(int n, char* buffer, size_t buffer_size, int padding) {
         bool negative = n < 0;
         
         n = abs(n);
         
-        if (n == 0) {
+        if (n == 0 && padding == 0) {
             buffer[0] = '0';
             buffer[1] = '\0';
+            return;
+        }else if(n == 0 && padding != 0){
+            buffer[0] = '0';
+            buffer[1] = '\0';
+            afstd::pad_string(padding, buffer, buffer_size, '0', 0);
             return;
         }
 
@@ -137,6 +142,7 @@ namespace afstd{
                 lastI = i;
             }
             buffer[lastI] = '-';
+            afstd::pad_string(padding, buffer, buffer_size, '0', 1);
         }else{
             // Add null terminator at the end
             buffer[digits] = '\0';
@@ -148,6 +154,7 @@ namespace afstd{
                 n /= 10; // divide n by 10
                 lastI = i;
             }
+            afstd::pad_string(padding, buffer, buffer_size, '0', 0);
         }
     }
     void int_to_char_array_hex(int n, char* buffer, size_t buffer_size, int padding) {

@@ -13,8 +13,8 @@ struct DateData{
     uint16_t day;
 };
 
-extern uint64_t SecondCount;
-extern uint64_t TimerWindow ;
+extern uint64_t SecondsSinceBoot;
+extern uint64_t TimerWindow;
 
 extern "C" void timer_interrupt_stub();
 extern "C" void sync_time_stub();

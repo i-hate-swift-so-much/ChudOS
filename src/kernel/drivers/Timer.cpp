@@ -1,9 +1,12 @@
 #include "Timer.h"
 
-uint64_t SecondCount = 0;
-uint64_t BiosSecondCount = 0;
-uint64_t TimerWindow = 0;
+#define BASE_FREQUENCY 1193180
+
+uint64_t SecondsSinceBoot;
+uint64_t BiosTime;
+uint64_t TimerWindow;
 uint16_t Frequency = 1193180;
+
 bool enabled = false;
 
 bool IsLeapYear(int y) {
@@ -26,21 +29,28 @@ DateData ParseSeconds(uint64_t time){
 }
 
 extern "C" void TimerInterrupt(InterruptRegisters* frame){
+    TimerWindow++;
     if(!enabled){ pic_send_eoi(0x00); return; }
     
     char ticks_str[22];
-    SecondCount = TimerWindow / 1000;
-    DateData date = ParseSeconds(SecondCount+BiosSecondCount);
-    afstd::int_to_char_array(date.second, ticks_str, sizeof(ticks_str));
-    WriteString(ticks_str, 79-calculate_string_length(ticks_str), 1);
-    TimerWindow++;
+    SecondsSinceBoot = TimerWindow / 1000;
 
+    //TimerWindow %= 1000;
+
+    DateData date = ParseSeconds(SecondsSinceBoot+BiosTime);
+    afstd::int_to_char_array(
+        date.second, 
+        ticks_str, 
+        sizeof(ticks_str),
+        2
+    );
+    WriteString(ticks_str, 79-calculate_string_length(ticks_str), 1);
+    
     pic_send_eoi(0x00);
 }
 
 void SetTimerFrequency(uint16_t hz) {
-    uint32_t base_freq = 1193180; // PIT Base Clock
-    uint16_t divisor = (uint16_t)(base_freq / hz);
+    uint16_t divisor = (uint16_t)(BASE_FREQUENCY / hz);
     
     Frequency = hz;
 
@@ -51,6 +61,9 @@ void SetTimerFrequency(uint16_t hz) {
 }
 
 extern "C" void SyncTime(InterruptRegisters* frame){
+    BiosTime = 0;
+    SecondsSinceBoot = 0;
+    
     uint8_t seconds;
     uint8_t minutes;
     uint8_t hours;
@@ -69,10 +82,10 @@ extern "C" void SyncTime(InterruptRegisters* frame){
     day = inb(0x71);
 
 
-    BiosSecondCount+=(uint64_t)seconds;
-    BiosSecondCount+=(uint64_t)minutes*60;
-    BiosSecondCount+=(uint64_t)hours*(60*60);
-    BiosSecondCount+=(uint64_t)day*86400;
+    BiosTime+=(uint64_t)seconds;
+    BiosTime+=(uint64_t)minutes*60;
+    BiosTime+=(uint64_t)hours*(60*60);
+    BiosTime+=(uint64_t)day*86400;
 
     pic_send_eoi(0x08);
     pic_mask(0x08);

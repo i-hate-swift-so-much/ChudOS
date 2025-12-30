@@ -30,7 +30,7 @@ extern "C" void KernelPanic(InterruptRegistersError* regs){
     
     SetTextColor(WHITE, BLACK);
     afstd::printf("\n");
-    afstd::printf("Unavailable for kernel panic.");
+    afstd::printf(" Unavailable for kernel panic.");
     DrawBox(0, 3, 46, 9, "Fault Details");
    
     char RIP_Value[22];

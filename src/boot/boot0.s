@@ -2,7 +2,7 @@
 [BITS 16]
 
 mov ah, 0x0
-mov al, 0x3
+mov al, 0x8             ; 80, 25
 int 0x10                ; text mode
 
 mov ah, 0x1

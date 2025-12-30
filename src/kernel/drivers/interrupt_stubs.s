@@ -198,7 +198,7 @@ timer_interrupt_stub:
         movq %cr2, %rax
         pushq %rax
 
-        pushq $0x00
+        pushq $0x08
 
         movq %rsp, %rdi
         call TimerInterrupt

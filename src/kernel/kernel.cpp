@@ -120,7 +120,7 @@ void kernel_startup_pixelmode(VBEModeInfoBlock* vbe_info){
     }
 }
 
-extern "C" void kernel_main(VBEModeInfoBlock* vbe_info, uint32_t vbe_present){ 
+extern "C" void kernel_main(VBEModeInfoBlock* vbe_info, uint64_t vbe_present){ 
     if(vbe_present){
         kernel_startup_pixelmode(vbe_info);
     }else{

@@ -218,7 +218,7 @@ fill_pd:
 
     ; kernel
     .kfill_loop:
-        cmp ecx, 128
+        cmp ecx, 32
         je fill_pd.kloop_done
 
         push eax
@@ -244,7 +244,7 @@ fill_pt:
     xor edx, edx
     mov ecx, 0
 
-    ; fills 8 page tables (16 MiB)
+    ; fills 16 page tables (64 MiB)
     .kfill_loop:
         cmp ecx, 8192
         je fill_pt.kfill_done

@@ -2,12 +2,11 @@
 
 #define VGA_WIDTH 80
 #define VGA_HEIGHT 25
+#define VGA_ADDRESS 0xB8000
 
-uint8_t* vga_buffer = (uint8_t*)0xB8000;
+uint8_t* vga_buffer = (uint8_t*)VGA_ADDRESS;
 
 uint8_t VGA_CUR_COLOR = 0x0F;
-
-const uint16_t VGA_ADDRESS = 0xB8000;
 
 size_t calculate_string_length(const char* str) {
     size_t length = 0;
@@ -22,8 +21,8 @@ void SetTextColor(uint8_t foreground, uint8_t background){
 }
 
 void WriteCharacter(char Character, int x, int y){
-    size_t offset = (y * 80 + x) * 2;
-    char* ptr = (char*)(0xB8000+offset);
+    size_t offset = (y * VGA_WIDTH + x) * 2;
+    char* ptr = (char*)(VGA_ADDRESS+offset);
     ptr[0] = Character;
     ptr[1] = VGA_CUR_COLOR;
 }
@@ -146,7 +145,7 @@ void WriteString(const char* string, int x, int y){
 }
 
 void ClearScreen(){
-    for(int i = 0; i < 80*25; i++){
+    for(int i = 0; i < VGA_WIDTH*VGA_HEIGHT; i++){
         WriteCharacter(' ', i, 0);
     }
 }
@@ -156,7 +155,7 @@ void ClearScreen(){
 // but `char = ReadCharacter(0, 0);` is invalid.
 // If you read it as signed, it will become negative.
 unsigned char ReadCharacter(int x, int y){
-    size_t offset = (y * 80 + x) * 2;
-    unsigned char* ptr = (unsigned char*)(0xB8000+offset);
+    size_t offset = (y * VGA_WIDTH + x) * 2;
+    unsigned char* ptr = (unsigned char*)(VGA_ADDRESS+offset);
     return ptr[0];
 };

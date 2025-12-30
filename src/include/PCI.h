@@ -4,6 +4,7 @@
 #include <stdbool.h>
 
 #include <IO.h>
+#include "Memory.h"
 
 #define PCI_CLASS_UND 0x00 // unclassified device, built before PCI 2.0 (could be VGA)
 #define PCI_CLASS_STR 0x01 // mass storage controller (HDD/Floppy)
@@ -18,6 +19,30 @@
 #define PCI_CLASS_DOC 0xA0 // docking station
 #define PCI_CLASS_PRO 0xB0 // processor (386, 486, Pentium, etc)
 #define PCI_CLASS_SER 0xC0 // serial bus controller (Firewire, USB, etc)
+
+// Below are PCI command encodings
+// and what their purposes are
+// (PCI SIG Specification 2.2)
+
+// interrupt acknowledge, dont really know rn
+#define PCI_CMD_ACK 0x00
+// special cycle, simple message broadcast (?? will elaborate)
+#define PCI_CMD_SPL 0x01
+// read data from an agent in I/O space
+#define PCI_CMD_IOR 0x02
+// write data to an agent in I/O space
+#define PCI_CMD_IOW 0x03
+// read data from an agent in memory address space
+#define PCI_CMD_MEM_R 0x06
+// write data to an agent in memory address space
+#define PCI_CMD_MEM_W 0x07
+//
+#define PCI_CMD_CFG_R 0x0A
+#define PCI_CMD_CFG_W 0x0B
+#define PCI_CMD_MRM 0x0C
+#define PCI_CMD_DAC 0x0D
+#define PCI_CMD_MRL 0x0E
+#define PCI_CMD_MRI 0x0F
 
 struct PCI_Common_Header{
     uint16_t VendorID;
@@ -84,12 +109,13 @@ struct PCI_Header_0x1{
 }__attribute__((packed));
 
 struct PCI_Device{
-    uint8_t Header;
+    PCI_Common_Header Header;
     PCI_Header_0x0 Header0;
     PCI_Header_0x1 Header1;
+    bool header_type;
+    bool present;
 }__attribute__((packed));
 
 extern PCI_Device Main_SATA_Controller;
-
 uint32_t PCI_CreateConfigAddress(uint8_t bus, uint8_t slot, uint8_t func, uint8_t offset);
 PCI_Common_Header PCI_ReadCommonHeader(uint8_t bus, uint8_t slot);

@@ -6,3 +6,4 @@ obj/*
 bin/*
 push.sh
 qemu.log
+sources
