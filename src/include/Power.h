@@ -2,5 +2,5 @@
 #include <stdint.h>
 #include "IO.h"
 
-extern "C" void reboot_triple_fault();
-extern "C" void reboot_cf9();
+void reboot_triple_fault();
+void reboot_cf9();

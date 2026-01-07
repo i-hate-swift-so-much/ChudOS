@@ -9,11 +9,14 @@ _start:
     ;mov dword [0x5000], 500
     ;mov ecx, [0x5000]
 
-    mov rdi, rax ; is VBE available?
-    mov rsi, rbx ; VBEModeInfoBlock pointer
 
+    ; no args since 1/6/26
+    ;mov rdi, rax ; is VBE available?
+    ;mov rsi, rbx ; VBEModeInfoBlock pointer
 
-    
+    mov rax, 0x7FFFF
+    mov rsp, rax
+    mov rbp, rax
 
     call kernel_main
     

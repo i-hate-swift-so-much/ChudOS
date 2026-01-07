@@ -1,14 +1,14 @@
 #include "std.h"
 #include "Math.h"
 #include "VGA.h"
+#include "stdbool.h"
 
 
 int curX = 0;
 int curY = 0;
 
-namespace afstd{
-    void printf(const char* toPrint, int length){
-        if(length == 0){ length = calculate_string_length(toPrint); }
+void printf(const char* toPrint, int length){
+        if(length == 0 || length == NULL){ length = calculate_string_length(toPrint); }
         for (int i = 0; i < length; i++){
             
             if(curX > 79){ curX = 0; curY++; }
@@ -26,7 +26,7 @@ namespace afstd{
                 }
                 if(nextWordLength+curX > 79){
                     if(curY == 25){
-                        afstd::cls();
+                        cls();
                     }else{
                         curX = 0;
                         curY++;
@@ -38,7 +38,7 @@ namespace afstd{
             }else if(curChar == '\n'){
                 if(curY == 25){
                     char temp_char[22];
-                    afstd::cls();
+                    cls();
                 }else{
                     curX = 0;
                     curY++;
@@ -71,7 +71,7 @@ namespace afstd{
                 WriteCharacter(' ', curX, curY);
             }else if(curChar == '\t'){
                 if(curX > 79-8 && curY == 24){
-                    afstd::cls();
+                    cls();
                     curX = 8-(79-curX);
                     curY = 0;
                 }else if(curX > 79-8){
@@ -83,7 +83,7 @@ namespace afstd{
             }else{
                 WriteCharacter(curChar, curX, curY);
                 if(curX == 79 && curY == 24){
-                    afstd::cls();
+                    cls();
                     curX = 0;
                     curY = 0;
                 }else if(curX == 79){
@@ -95,37 +95,39 @@ namespace afstd{
             }
         }
     }
-    void cls(){
+void cls(){
         curX = 0;
         curY = 0;
         ClearScreen();
     }
-    void int_to_char_array(int n, char* buffer, size_t buffer_size, int padding) {
-        bool negative = n < 0;
+void int_to_char_array(int n, char* buffer, size_t buffer_size, int padding) {
+    if(padding == NULL){ padding = 0; }
+    
+    bool negative = n < 0;
         
-        n = abs(n);
+    n = abs(n);
         
-        if (n == 0 && padding == 0) {
-            buffer[0] = '0';
-            buffer[1] = '\0';
-            return;
-        }else if(n == 0 && padding != 0){
-            buffer[0] = '0';
-            buffer[1] = '\0';
-            afstd::pad_string(padding, buffer, buffer_size, '0', 0);
-            return;
-        }
+    if (n == 0 && padding == 0) {
+        buffer[0] = '0';
+        buffer[1] = '\0';
+        return;
+    }else if(n == 0 && padding != 0){
+        buffer[0] = '0';
+        buffer[1] = '\0';
+        pad_string(padding, buffer, buffer_size, '0', 0);
+        return;
+    }
 
-        int temp = n;
-        int digits = 0;
-        while (temp != 0) {
-            temp /= 10;
-            digits++;
-        }
+    int temp = n;
+    int digits = 0;
+    while (temp != 0) {
+        temp /= 10;
+        digits++;
+    }
 
-        if (buffer_size < digits){
-            return;
-        }
+    if (buffer_size < digits){
+        return;
+    }
 
 
         int lastI;
@@ -142,7 +144,7 @@ namespace afstd{
                 lastI = i;
             }
             buffer[lastI] = '-';
-            afstd::pad_string(padding, buffer, buffer_size, '0', 1);
+            pad_string(padding, buffer, buffer_size, '0', 1);
         }else{
             // Add null terminator at the end
             buffer[digits] = '\0';
@@ -154,11 +156,13 @@ namespace afstd{
                 n /= 10; // divide n by 10
                 lastI = i;
             }
-            afstd::pad_string(padding, buffer, buffer_size, '0', 0);
+            pad_string(padding, buffer, buffer_size, '0', 0);
         }
     }
-    void int_to_char_array_hex(int n, char* buffer, size_t buffer_size, int padding) {
-        bool negative = n < 0;
+void int_to_char_array_hex(int n, char* buffer, size_t buffer_size, int padding) {
+    if(padding == NULL){ padding = 0; }    
+    
+    bool negative = n < 0;
         
         n = abs(n);
         
@@ -173,7 +177,7 @@ namespace afstd{
             buffer[1] = 'x';
             buffer[2] = '0';
             buffer[3] = '\0';
-            afstd::pad_string(padding, buffer, buffer_size, '0', 2);
+            pad_string(padding, buffer, buffer_size, '0', 2);
             return;
         }
 
@@ -211,7 +215,7 @@ namespace afstd{
             buffer[lastI] = '-';
             buffer[lastI+1] = '0';
             buffer[lastI+2] = 'x';
-            afstd::pad_string(padding, buffer, buffer_size, '0', 3);
+            pad_string(padding, buffer, buffer_size, '0', 3);
         }else{
             // Convert without negative symbol
             for (int i = digits - 1; i >= 0; i--) {
@@ -228,11 +232,13 @@ namespace afstd{
             }
             buffer[lastI] = '0';
             buffer[lastI+1] = 'x';
-            afstd::pad_string(padding, buffer, buffer_size, '0', 2);
+            pad_string(padding, buffer, buffer_size, '0', 2);
         }
     }
-    void int_to_char_array_binary(int n, char* buffer, size_t buffer_size, int padding){
-        bool negative = n < 0;
+void int_to_char_array_binary(int n, char* buffer, size_t buffer_size, int padding){
+    if(padding == NULL){ padding = 0; }
+    
+    bool negative = n < 0;
 
         n = abs(n);
 
@@ -247,7 +253,7 @@ namespace afstd{
             buffer[1] = 'b';
             buffer[2] = '0';
             buffer[3] = '\0';
-            afstd::pad_string(padding, buffer, buffer_size, '0', 2);
+            pad_string(padding, buffer, buffer_size, '0', 2);
             return;
         }
 
@@ -278,7 +284,7 @@ namespace afstd{
             buffer[lastI] = '-';
             buffer[lastI+1] = '0';
             buffer[lastI+2] = 'b';
-            afstd::pad_string(padding, buffer, buffer_size, '0', 3);
+            pad_string(padding, buffer, buffer_size, '0', 3);
         }else{
             // Convert without negative symbol
             for (int i = digits - 1; i >= 0; i--) {
@@ -291,12 +297,14 @@ namespace afstd{
             }
             buffer[lastI] = '0';
             buffer[lastI+1] = 'b';
-            afstd::pad_string(padding, buffer, buffer_size, '0', 2);
+            pad_string(padding, buffer, buffer_size, '0', 2);
         }
     }
-    // TODO: fix pad_string
-    void pad_string(int padding, char* buffer, int buffer_size, char filler, int start){
-        if(buffer_size == 0){ return; }
+void pad_string(int padding, char* buffer, int buffer_size, char filler, int start){
+    if(padding == NULL){ padding = 0; }
+    if(filler == NULL){ filler = '0'; }
+    
+    if(buffer_size == 0){ return; }
         if(buffer_size <= start){ return; }
         if(buffer_size < padding){ return; }
 
@@ -329,7 +337,7 @@ namespace afstd{
             buffer[i] = tempBuffer[i];
         }
     }
-    void setCursor(int x, int y){
+void setCursor(int x, int y){
         if(x > 79){ x = 79; }
         if(y > 24){ y = 24; }
         if(x < 0){ x = 0; }
@@ -337,10 +345,9 @@ namespace afstd{
         curX = x;
         curY = y;
     }
-    void printf_centered(const char* toPrint, int length){
+void printf_centered(const char* toPrint, int length){
         if(length == 0){ length = calculate_string_length(toPrint); }
         int offset = (79 - length) / 2;
         setCursor(offset, curY);
-        afstd::printf(toPrint);
+        printf(toPrint, length);
     }
-}

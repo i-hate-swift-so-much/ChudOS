@@ -2,7 +2,7 @@
 
 #include <stdint.h>
 
-struct InterruptRegisters{
+struct InterruptRegisters_s{
     uint64_t int_no;
 
     uint64_t cr2;
@@ -32,7 +32,9 @@ struct InterruptRegisters{
     uint64_t ss;
 }__attribute__((packed));
 
-struct InterruptRegistersError{
+typedef struct InterruptRegisters_s InterruptRegisters;
+
+struct InterruptRegistersError_s{
     uint64_t int_no;
     
     uint64_t cr2;
@@ -63,15 +65,19 @@ struct InterruptRegistersError{
     uint64_t ss;
 }__attribute__((packed));
 
-struct interrupt_frame {
+typedef struct InterruptRegistersError_s InterruptRegistersError;
+
+struct interrupt_frame_s {
     uint64_t rip;
     uint64_t cs;
     uint64_t rflags;
     uint64_t rsp;
     uint64_t ss;
-} __attribute__((packed));
+}__attribute__((packed));
 
-struct IDTEntry {
+typedef struct interrupt_frame_s interrupt_frame;
+
+struct IDTEntry_S{
     uint16_t offset_low;    // Lower 16 bits of the handler's address
     uint16_t selector;      // Code segment selector
     uint8_t  ist;     // first 3 bits are the IST offset, rest MUST be zero
@@ -79,12 +85,15 @@ struct IDTEntry {
     uint16_t offset_middle;   // Middle 16 bits of the handler's address
     uint32_t offset_high; // Upper 32 bits of the handler's address
     uint32_t zero; // must be zero
-};
+}__attribute__((packed));
 
-struct __attribute__((packed)) IDTR {
+struct IDTR_S{
     uint16_t limit; // Size of IDT - 1
     uint64_t base;  // Base address of the IDT
-};
+}__attribute__((packed));
+
+typedef struct IDTEntry_S IDTEntry;
+typedef struct IDTR_S IDTR;
 
 void LoadIDT();
 void SetIDTEntry(uint8_t entry_num, uint64_t handler_address, uint16_t selector, uint8_t flags);

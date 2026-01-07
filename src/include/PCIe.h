@@ -3,12 +3,12 @@
 #include "stddef.h"
 #include "stdint.h"
 
-struct PCIe_Config_BAR_Allocation{
+typedef struct {
     uint64_t ECM_Base;
     uint16_t PCI_Segment_Group;
     uint8_t PCI_Bus_Start;
     uint8_t PCI_Bus_End;
-};
+}PCIe_Config_BAR_Allocation;
 
 // if something doesn't have a comment,
 // refer to the OSDev WiKi's page on

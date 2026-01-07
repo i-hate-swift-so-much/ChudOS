@@ -26,7 +26,7 @@ void* LoadElf(const void* RawFile){
         elf_header.e_ident.EI_OSABI != 0x13 || 
         elf_header.e_ident.EI_ABIVERSION != 0xFF ||
         elf_header.e_phentsize != 0x40
-    ){ return nullptr; }
+    ){ return NULL; }
 
     uint16_t e_phnum = elf_header.e_phnum;
     for(int i = 0; i < e_phnum; i++){

@@ -3,21 +3,22 @@
 #include "Memory.h"
 #include "IO.h"
 #include "std.h"
+#include "IDT.h"
 #include "PIC.h"
 #include "VGA.h"
 
-struct DateData{
+typedef struct{
     uint16_t second;
     uint16_t minute;
     uint16_t hour;
     uint16_t day;
-};
+} DateData;
 
 extern uint64_t SecondsSinceBoot;
 extern uint64_t TimerWindow;
 
-extern "C" void timer_interrupt_stub();
-extern "C" void sync_time_stub();
-extern "C" void TimerInterrupt(InterruptRegisters* frame);
-extern "C" void SyncTime(InterruptRegisters* frame);
+void timer_interrupt_stub();
+void sync_time_stub();
+void TimerInterrupt(InterruptRegisters* frame);
+void SyncTime(InterruptRegisters* frame);
 void SetTimerFrequency(uint16_t hz);

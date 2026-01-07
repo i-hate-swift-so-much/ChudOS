@@ -55,6 +55,7 @@
         cmpq $0x08, 8(%rsp)
         jne 2f
         1:
+                // from kernel
                 pushq %rax
                 movq 16(%rsp), %rax // 16 instead of 8 due to %rax push
                 movq %rax, check_priv

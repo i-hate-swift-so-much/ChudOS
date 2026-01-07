@@ -44,7 +44,17 @@
 #define PCI_CMD_MRL 0x0E
 #define PCI_CMD_MRI 0x0F
 
-struct PCI_Common_Header{
+// command register layout (IMPORTANT!!!)
+// bit 0: 1 means device can respond to I/O accesses
+// bit 1: 1 means device can respond to mem accesses
+// bit 2: 1 means device can act as the master on bus
+// bit 3: 1 means device can monitor special cycles
+// bit 4: 1 means enable memory write and invalidate
+// bit 5: 1 means device can VGA pallette snoop for whatever reason
+// bit 6: 1 means device reacts to parity errors in its normal way, otherwise it sets status parity error bit
+// bit 7: 
+
+typedef struct{
     uint16_t VendorID;
     uint16_t DeviceID;
     uint16_t Command;
@@ -58,9 +68,9 @@ struct PCI_Common_Header{
     uint8_t HeaderType;
     uint8_t BIST;
     bool MF;
-}__attribute__((packed));
+}PCI_Common_Header ;
 
-struct PCI_Header_0x0{
+typedef struct{
     PCI_Common_Header Common_Header;
     uint32_t BAR0;
     uint32_t BAR1;
@@ -79,9 +89,9 @@ struct PCI_Header_0x0{
     uint8_t InterruptPIN;
     uint8_t MinGrant;
     uint8_t MaxLatency;
-}__attribute__((packed));
+}PCI_Header_0x0 ;
 
-struct PCI_Header_0x1{
+typedef struct{
     PCI_Common_Header Common_Header;
     uint32_t BAR0;
     uint32_t BAR1;
@@ -106,15 +116,15 @@ struct PCI_Header_0x1{
     uint8_t InterruptLine;
     uint8_t InterruptPIN;
     uint16_t BridgeControl;
-}__attribute__((packed));
+}PCI_Header_0x1 ;
 
-struct PCI_Device{
+typedef struct{
     PCI_Common_Header Header;
     PCI_Header_0x0 Header0;
     PCI_Header_0x1 Header1;
     bool header_type;
     bool present;
-}__attribute__((packed));
+}PCI_Device ;
 
 extern PCI_Device Main_SATA_Controller;
 uint32_t PCI_CreateConfigAddress(uint8_t bus, uint8_t slot, uint8_t func, uint8_t offset);

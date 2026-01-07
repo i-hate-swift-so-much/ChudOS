@@ -2,9 +2,9 @@
 
 #define BASE_FREQUENCY 1193180
 
-uint64_t SecondsSinceBoot;
-uint64_t BiosTime;
-uint64_t TimerWindow;
+uint64_t SecondsSinceBoot = 0;
+uint64_t BiosTime = 0;
+uint64_t TimerWindow = 0;
 uint16_t Frequency = 1193180;
 
 bool enabled = false;
@@ -28,7 +28,7 @@ DateData ParseSeconds(uint64_t time){
     return ret;
 }
 
-extern "C" void TimerInterrupt(InterruptRegisters* frame){
+void TimerInterrupt(InterruptRegisters* frame){
     TimerWindow++;
     if(!enabled){ pic_send_eoi(0x00); return; }
     
@@ -38,7 +38,7 @@ extern "C" void TimerInterrupt(InterruptRegisters* frame){
     //TimerWindow %= 1000;
 
     DateData date = ParseSeconds(SecondsSinceBoot+BiosTime);
-    afstd::int_to_char_array(
+    int_to_char_array(
         date.second, 
         ticks_str, 
         sizeof(ticks_str),
@@ -60,7 +60,7 @@ void SetTimerFrequency(uint16_t hz) {
     outb(0x40, (divisor >> 8) & 0xFF);   // High byte
 }
 
-extern "C" void SyncTime(InterruptRegisters* frame){
+void SyncTime(InterruptRegisters* frame){
     BiosTime = 0;
     SecondsSinceBoot = 0;
     
@@ -89,6 +89,7 @@ extern "C" void SyncTime(InterruptRegisters* frame){
 
     pic_send_eoi(0x08);
     pic_mask(0x08);
+    pic_unmask(0x00);
 
     enabled = true;
 }

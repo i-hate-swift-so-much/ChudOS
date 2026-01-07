@@ -5,7 +5,7 @@ IDTEntry kernel_idt[256];
 IDTR kernel_idtr_descriptor;
 
 void LoadIDT(){
-    kernel_idtr_descriptor.limit = (sizeof(IDTEntry) * 256) - 1;
+    kernel_idtr_descriptor.limit = (16 * 256) - 1;
     kernel_idtr_descriptor.base = (uint64_t)&kernel_idt;
     asm volatile("lidt %0" : : "m"(kernel_idtr_descriptor));
 }

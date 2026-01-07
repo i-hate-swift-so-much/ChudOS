@@ -1,11 +1,11 @@
 #include "Exceptions.h"
 
-extern "C" void HandlePageFault(InterruptRegistersError* regs){
-    afstd::cls();
+void HandlePageFault(InterruptRegistersError* regs){
+    cls();
     SetTextColor(LRED, BLACK);
-    afstd::printf("\n Page Fault!\n\n");
+    printf("\n Page Fault!\n\n", 0);
     SetTextColor(WHITE, BLACK);
-    DrawBox(0, 0, 80, 3);
+    DrawBox(0, 0, 80, 3, "");
     
     uint64_t err = regs->error_code;
 
@@ -18,57 +18,57 @@ extern "C" void HandlePageFault(InterruptRegistersError* regs){
     bool ShadowStack = err & 0b1000000; // shadow stack fault.
 
     char Err_str[22];
-    afstd::int_to_char_array_binary(err, Err_str, sizeof(Err_str), 8);
+    int_to_char_array_binary(err, Err_str, sizeof(Err_str), 8);
 
     SetTextColor(WHITE, BLACK);
-    afstd::printf("\n");
-    afstd::printf(" PRESENT            :                  "); if(Present){ afstd::printf("TRUE   \n"); }else{ afstd::printf("FALSE  \n"); }
-    afstd::printf(" ACTION             :                  "); if(RW){ afstd::printf("WRITE  \n"); }else{ afstd::printf("READ   \n"); }
-    afstd::printf(" INITIATOR LEVEL    :                  "); if(User){ afstd::printf("USER   \n"); }else{ afstd::printf("KERNEL \n"); }
-    afstd::printf(" RESERVED FAULT     :                  "); if(Res){ afstd::printf("TRUE   \n"); }else{ afstd::printf("FALSE  \n"); }
-    afstd::printf(" INSTRUCTION FAULT  :                  "); if(Instruction){ afstd::printf("TRUE   \n"); }else{ afstd::printf("FALSE  \n"); } 
-    afstd::printf(" PROTECTION FAULT   :                  "); if(Instruction){ afstd::printf("TRUE   \n"); }else{ afstd::printf("FALSE  \n"); } 
-    afstd::printf(" SHADOW STACK FAULT :                  "); if(ShadowStack){ afstd::printf("TRUE   \n"); }else{ afstd::printf("FALSE  \n"); }
-    afstd::printf(" Error Code         :             "); afstd::printf(Err_str);
+    printf("\n", 0);
+    printf(" PRESENT            :                  ", 0); if(Present){ printf("TRUE   \n", 0); }else{ printf("FALSE  \n", 0); }
+    printf(" ACTION             :                  ", 0); if(RW){ printf("WRITE  \n", 0); }else{ printf("READ   \n", 0); }
+    printf(" INITIATOR LEVEL    :                  ", 0); if(User){ printf("USER   \n", 0); }else{ printf("KERNEL \n", 0); }
+    printf(" RESERVED FAULT     :                  ", 0); if(Res){ printf("TRUE   \n", 0); }else{ printf("FALSE  \n", 0); }
+    printf(" INSTRUCTION FAULT  :                  ", 0); if(Instruction){ printf("TRUE   \n", 0); }else{ printf("FALSE  \n", 0); } 
+    printf(" PROTECTION FAULT   :                  ", 0); if(Instruction){ printf("TRUE   \n", 0); }else{ printf("FALSE  \n", 0); } 
+    printf(" SHADOW STACK FAULT :                  ", 0); if(ShadowStack){ printf("TRUE   \n", 0); }else{ printf("FALSE  \n", 0); }
+    printf(" Error Code         :             ", 0); printf(Err_str, 0);
 
     DrawBox(0, 3, 46, 22, "Fault Details");
    
     char RIP_Value[22];
-    afstd::int_to_char_array_hex(regs->rip, RIP_Value, sizeof(RIP_Value), 16);
+    int_to_char_array_hex(regs->rip, RIP_Value, sizeof(RIP_Value), 16);
     char RSI_Value[22];
-    afstd::int_to_char_array_hex(regs->rsi, RSI_Value, sizeof(RSI_Value), 16);
+    int_to_char_array_hex(regs->rsi, RSI_Value, sizeof(RSI_Value), 16);
     char RDI_Value[22];
-    afstd::int_to_char_array_hex(regs->rdi, RDI_Value, sizeof(RDI_Value), 16);
+    int_to_char_array_hex(regs->rdi, RDI_Value, sizeof(RDI_Value), 16);
     char RBP_Value[22];
-    afstd::int_to_char_array_hex(regs->rbp, RBP_Value, sizeof(RBP_Value), 16);
+    int_to_char_array_hex(regs->rbp, RBP_Value, sizeof(RBP_Value), 16);
     char CS_Value[22];
-    afstd::int_to_char_array_hex(regs->cs, CS_Value, sizeof(CS_Value), 2);
+    int_to_char_array_hex(regs->cs, CS_Value, sizeof(CS_Value), 2);
     char R8_Value[22];
-    afstd::int_to_char_array_hex(regs->r8, R8_Value, sizeof(R8_Value), 16);
+    int_to_char_array_hex(regs->r8, R8_Value, sizeof(R8_Value), 16);
     char R9_Value[22];
-    afstd::int_to_char_array_hex(regs->r9, R9_Value, sizeof(R9_Value), 16);
+    int_to_char_array_hex(regs->r9, R9_Value, sizeof(R9_Value), 16);
     char R10_Value[22];
-    afstd::int_to_char_array_hex(regs->r10, R10_Value, sizeof(R10_Value), 16);
+    int_to_char_array_hex(regs->r10, R10_Value, sizeof(R10_Value), 16);
     char R11_Value[22];
-    afstd::int_to_char_array_hex(regs->r11, R11_Value, sizeof(R11_Value), 16);
+    int_to_char_array_hex(regs->r11, R11_Value, sizeof(R11_Value), 16);
     char R12_Value[22];
-    afstd::int_to_char_array_hex(regs->r12, R12_Value, sizeof(R12_Value), 16);
+    int_to_char_array_hex(regs->r12, R12_Value, sizeof(R12_Value), 16);
     char R13_Value[22];
-    afstd::int_to_char_array_hex(regs->r13, R13_Value, sizeof(R13_Value), 16);
+    int_to_char_array_hex(regs->r13, R13_Value, sizeof(R13_Value), 16);
     char R14_Value[22];
-    afstd::int_to_char_array_hex(regs->r14, R14_Value, sizeof(R14_Value), 16);
+    int_to_char_array_hex(regs->r14, R14_Value, sizeof(R14_Value), 16);
     char R15_Value[22];
-    afstd::int_to_char_array_hex(regs->r15, R15_Value, sizeof(R15_Value), 16);
+    int_to_char_array_hex(regs->r15, R15_Value, sizeof(R15_Value), 16);
     char RAX_Value[22];
-    afstd::int_to_char_array_hex(regs->rax, RAX_Value, sizeof(RAX_Value), 16);
+    int_to_char_array_hex(regs->rax, RAX_Value, sizeof(RAX_Value), 16);
     char RBX_Value[22];
-    afstd::int_to_char_array_hex(regs->rbx, RBX_Value, sizeof(RBX_Value), 16);
+    int_to_char_array_hex(regs->rbx, RBX_Value, sizeof(RBX_Value), 16);
     char RCX_Value[22];
-    afstd::int_to_char_array_hex(regs->rcx, RCX_Value, sizeof(RCX_Value), 16);
+    int_to_char_array_hex(regs->rcx, RCX_Value, sizeof(RCX_Value), 16);
     char RDX_Value[22];
-    afstd::int_to_char_array_hex(regs->rdx, RDX_Value, sizeof(RDX_Value), 16);
+    int_to_char_array_hex(regs->rdx, RDX_Value, sizeof(RDX_Value), 16);
     char RFLAGS_Value[22];
-    afstd::int_to_char_array_binary(regs->rflags, RFLAGS_Value, sizeof(RFLAGS_Value));
+    int_to_char_array_binary(regs->rflags, RFLAGS_Value, sizeof(RFLAGS_Value), 32);
 
     WriteString("RIP    :", 47, 4);
     WriteString(RIP_Value, 56, 4);
@@ -118,11 +118,11 @@ extern "C" void HandlePageFault(InterruptRegistersError* regs){
 
     PageDetails parsed = ParsePTE(PTE_Address);
     char VirtualAddress[22];
-    afstd::int_to_char_array_hex(Page, VirtualAddress, sizeof(VirtualAddress), 12);
+    int_to_char_array_hex(Page, VirtualAddress, sizeof(VirtualAddress), 12);
     char PhysicalAddress[22];
-    afstd::int_to_char_array_hex(parsed.physical_address, PhysicalAddress, sizeof(PhysicalAddress), 12);
+    int_to_char_array_hex(parsed.physical_address, PhysicalAddress, sizeof(PhysicalAddress), 12);
     char Flags[22];
-    afstd::int_to_char_array_binary(parsed.flags.flags, Flags, sizeof(Flags), 8);
+    int_to_char_array_binary(parsed.flags.flags, Flags, sizeof(Flags), 8);
     
 
     WriteString("Virtual Address  :", 1, 13);
@@ -143,13 +143,13 @@ extern "C" void HandlePageFault(InterruptRegistersError* regs){
     );
 }
 
-extern "C" void GeneralProtectionFault(InterruptRegistersError* regs){
-    afstd::cls();
+void GeneralProtectionFault(InterruptRegistersError* regs){
+    cls();
     SetTextColor(LRED, BLACK);
     char interrupt[22];
-    afstd::printf("\n General Protection Fault!\n\n");
+    printf("\n General Protection Fault!\n\n", 0);
     SetTextColor(WHITE, BLACK);
-    DrawBox(0, 0, 80, 3);
+    DrawBox(0, 0, 80, 3, "");
     
     uint64_t err = regs->error_code;
     
@@ -157,51 +157,51 @@ extern "C" void GeneralProtectionFault(InterruptRegistersError* regs){
     TBL = (uint8_t)((err >> 1) & 0b11);
     uint16_t index = (uint16_t)err >> 3;
     char index_string[22];
-    afstd::int_to_char_array_hex(err, index_string, sizeof(index_string));
+    int_to_char_array_hex(err, index_string, sizeof(index_string), 16);
 
     SetTextColor(WHITE, BLACK);
-    afstd::printf("\n");
-    afstd::printf(" SOURCE             :                  "); if(TBL == 1 || TBL == 3){ afstd::printf("IDT   \n"); }else if(TBL == 0){ afstd::printf("GDT   \n"); }else{ afstd::printf("LDT   \n"); }
-    afstd::printf(" OFFSET             :                  "); afstd::printf(index_string); afstd::printf("\n");
+    printf("\n", 0);
+    printf(" SOURCE             :                  ", 0); if(TBL == 1 || TBL == 3){ printf("IDT   \n", 0); }else if(TBL == 0){ printf("GDT   \n", 0); }else{ printf("LDT   \n", 0); }
+    printf(" OFFSET             :                  ", 0); printf(index_string, 0); printf("\n", 0);
     
     DrawBox(0, 3, 46, 9, "Fault Details");
    
     char RIP_Value[22];
-    afstd::int_to_char_array_hex(regs->rip, RIP_Value, sizeof(RIP_Value));
+    int_to_char_array_hex(regs->rip, RIP_Value, sizeof(RIP_Value), 16);
     char RSI_Value[22];
-    afstd::int_to_char_array_hex(regs->rsi, RSI_Value, sizeof(RSI_Value));
+    int_to_char_array_hex(regs->rsi, RSI_Value, sizeof(RSI_Value), 16);
     char RDI_Value[22];
-    afstd::int_to_char_array_hex(regs->rdi, RDI_Value, sizeof(RDI_Value));
+    int_to_char_array_hex(regs->rdi, RDI_Value, sizeof(RDI_Value), 16);
     char RBP_Value[22];
-    afstd::int_to_char_array_hex(regs->rbp, RBP_Value, sizeof(RBP_Value));
+    int_to_char_array_hex(regs->rbp, RBP_Value, sizeof(RBP_Value), 16);
     char CS_Value[22];
-    afstd::int_to_char_array_hex(regs->cs, CS_Value, sizeof(CS_Value));
+    int_to_char_array_hex(regs->cs, CS_Value, sizeof(CS_Value), 16);
     char R8_Value[22];
-    afstd::int_to_char_array_hex(regs->r8, R8_Value, sizeof(R8_Value));
+    int_to_char_array_hex(regs->r8, R8_Value, sizeof(R8_Value), 16);
     char R9_Value[22];
-    afstd::int_to_char_array_hex(regs->r9, R9_Value, sizeof(R9_Value));
+    int_to_char_array_hex(regs->r9, R9_Value, sizeof(R9_Value), 16);
     char R10_Value[22];
-    afstd::int_to_char_array_hex(regs->r10, R10_Value, sizeof(R10_Value));
+    int_to_char_array_hex(regs->r10, R10_Value, sizeof(R10_Value), 16);
     char R11_Value[22];
-    afstd::int_to_char_array_hex(regs->r11, R11_Value, sizeof(R11_Value));
+    int_to_char_array_hex(regs->r11, R11_Value, sizeof(R11_Value), 16);
     char R12_Value[22];
-    afstd::int_to_char_array_hex(regs->r12, R12_Value, sizeof(R12_Value));
+    int_to_char_array_hex(regs->r12, R12_Value, sizeof(R12_Value), 16);
     char R13_Value[22];
-    afstd::int_to_char_array_hex(regs->r13, R13_Value, sizeof(R13_Value));
+    int_to_char_array_hex(regs->r13, R13_Value, sizeof(R13_Value), 16);
     char R14_Value[22];
-    afstd::int_to_char_array_hex(regs->r14, R14_Value, sizeof(R14_Value));
+    int_to_char_array_hex(regs->r14, R14_Value, sizeof(R14_Value), 16);
     char R15_Value[22];
-    afstd::int_to_char_array_hex(regs->r15, R15_Value, sizeof(R15_Value));
+    int_to_char_array_hex(regs->r15, R15_Value, sizeof(R15_Value), 16);
     char RAX_Value[22];
-    afstd::int_to_char_array_hex(regs->rax, RAX_Value, sizeof(RAX_Value));
+    int_to_char_array_hex(regs->rax, RAX_Value, sizeof(RAX_Value), 16);
     char RBX_Value[22];
-    afstd::int_to_char_array_hex(regs->rbx, RBX_Value, sizeof(RBX_Value));
+    int_to_char_array_hex(regs->rbx, RBX_Value, sizeof(RBX_Value), 16);
     char RCX_Value[22];
-    afstd::int_to_char_array_hex(regs->rcx, RCX_Value, sizeof(RCX_Value));
+    int_to_char_array_hex(regs->rcx, RCX_Value, sizeof(RCX_Value), 16);
     char RDX_Value[22];
-    afstd::int_to_char_array_hex(regs->rdx, RDX_Value, sizeof(RDX_Value));
+    int_to_char_array_hex(regs->rdx, RDX_Value, sizeof(RDX_Value), 16);
     char RFLAGS_Value[22];
-    afstd::int_to_char_array_binary(regs->rflags, RFLAGS_Value, sizeof(RFLAGS_Value));
+    int_to_char_array_binary(regs->rflags, RFLAGS_Value, sizeof(RFLAGS_Value), 32);
 
     WriteString("RIP    :", 47, 4);
     WriteString(RIP_Value, 56, 4);
@@ -256,12 +256,12 @@ extern "C" void GeneralProtectionFault(InterruptRegistersError* regs){
     );
 }
 
-extern "C" void InvalidOpcode(InterruptRegistersError* regs){
-    afstd::cls();
+void InvalidOpcode(InterruptRegistersError* regs){
+    cls();
     SetTextColor(LRED, BLACK);
-    afstd::printf("\n Invalid Opcode!\n\n");
+    printf("\n Invalid Opcode!\n\n", 0);
     SetTextColor(WHITE, BLACK);
-    DrawBox(0, 0, 80, 3);
+    DrawBox(0, 0, 80, 3, "");
     
     uint64_t err = regs->error_code;
 
@@ -274,46 +274,46 @@ extern "C" void InvalidOpcode(InterruptRegistersError* regs){
     bool ShadowStack = err & 0b1000000; // shadow stack fault.
 
     SetTextColor(WHITE, BLACK);
-    afstd::printf("\n");
-    afstd::printf(" Not available with #UP");
+    printf("\n", 0);
+    printf(" Not available with #UP", 0);
     DrawBox(0, 3, 46, 22, "Fault Details");
    
     char RIP_Value[22];
-    afstd::int_to_char_array_hex(regs->rip, RIP_Value, sizeof(RIP_Value), 16);
+    int_to_char_array_hex(regs->rip, RIP_Value, sizeof(RIP_Value), 16);
     char RSI_Value[22];
-    afstd::int_to_char_array_hex(regs->rsi, RSI_Value, sizeof(RSI_Value), 16);
+    int_to_char_array_hex(regs->rsi, RSI_Value, sizeof(RSI_Value), 16);
     char RDI_Value[22];
-    afstd::int_to_char_array_hex(regs->rdi, RDI_Value, sizeof(RDI_Value), 16);
+    int_to_char_array_hex(regs->rdi, RDI_Value, sizeof(RDI_Value), 16);
     char RBP_Value[22];
-    afstd::int_to_char_array_hex(regs->rbp, RBP_Value, sizeof(RBP_Value), 16);
+    int_to_char_array_hex(regs->rbp, RBP_Value, sizeof(RBP_Value), 16);
     char CS_Value[22];
-    afstd::int_to_char_array_hex(regs->cs, CS_Value, sizeof(CS_Value), 2);
+    int_to_char_array_hex(regs->cs, CS_Value, sizeof(CS_Value), 2);
     char R8_Value[22];
-    afstd::int_to_char_array_hex(regs->r8, R8_Value, sizeof(R8_Value), 16);
+    int_to_char_array_hex(regs->r8, R8_Value, sizeof(R8_Value), 16);
     char R9_Value[22];
-    afstd::int_to_char_array_hex(regs->r9, R9_Value, sizeof(R9_Value), 16);
+    int_to_char_array_hex(regs->r9, R9_Value, sizeof(R9_Value), 16);
     char R10_Value[22];
-    afstd::int_to_char_array_hex(regs->r10, R10_Value, sizeof(R10_Value), 16);
+    int_to_char_array_hex(regs->r10, R10_Value, sizeof(R10_Value), 16);
     char R11_Value[22];
-    afstd::int_to_char_array_hex(regs->r11, R11_Value, sizeof(R11_Value), 16);
+    int_to_char_array_hex(regs->r11, R11_Value, sizeof(R11_Value), 16);
     char R12_Value[22];
-    afstd::int_to_char_array_hex(regs->r12, R12_Value, sizeof(R12_Value), 16);
+    int_to_char_array_hex(regs->r12, R12_Value, sizeof(R12_Value), 16);
     char R13_Value[22];
-    afstd::int_to_char_array_hex(regs->r13, R13_Value, sizeof(R13_Value), 16);
+    int_to_char_array_hex(regs->r13, R13_Value, sizeof(R13_Value), 16);
     char R14_Value[22];
-    afstd::int_to_char_array_hex(regs->r14, R14_Value, sizeof(R14_Value), 16);
+    int_to_char_array_hex(regs->r14, R14_Value, sizeof(R14_Value), 16);
     char R15_Value[22];
-    afstd::int_to_char_array_hex(regs->r15, R15_Value, sizeof(R15_Value), 16);
+    int_to_char_array_hex(regs->r15, R15_Value, sizeof(R15_Value), 16);
     char RAX_Value[22];
-    afstd::int_to_char_array_hex(regs->rax, RAX_Value, sizeof(RAX_Value), 16);
+    int_to_char_array_hex(regs->rax, RAX_Value, sizeof(RAX_Value), 16);
     char RBX_Value[22];
-    afstd::int_to_char_array_hex(regs->rbx, RBX_Value, sizeof(RBX_Value), 16);
+    int_to_char_array_hex(regs->rbx, RBX_Value, sizeof(RBX_Value), 16);
     char RCX_Value[22];
-    afstd::int_to_char_array_hex(regs->rcx, RCX_Value, sizeof(RCX_Value), 16);
+    int_to_char_array_hex(regs->rcx, RCX_Value, sizeof(RCX_Value), 16);
     char RDX_Value[22];
-    afstd::int_to_char_array_hex(regs->rdx, RDX_Value, sizeof(RDX_Value), 16);
+    int_to_char_array_hex(regs->rdx, RDX_Value, sizeof(RDX_Value), 16);
     char RFLAGS_Value[22];
-    afstd::int_to_char_array_binary(regs->rflags, RFLAGS_Value, sizeof(RFLAGS_Value));
+    int_to_char_array_binary(regs->rflags, RFLAGS_Value, sizeof(RFLAGS_Value), 0);
 
     WriteString("RIP    :", 47, 4);
     WriteString(RIP_Value, 56, 4);

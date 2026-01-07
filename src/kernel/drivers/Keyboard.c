@@ -6,6 +6,8 @@
 
 #include "std.h"
 #include "KernelPanic.h"
+#include "IDT.h"
+#include "stdint.h"
 
 #define KBD_PORT 0x60
 
@@ -53,7 +55,7 @@ void HandleKeyboardInterrupt(interrupt_frame* frame){
     if(scancode == 0x0F && ctrl && alt){
         // trigger page fault
         uintptr_t addr = 0x000F000000;
-        uint64_t* fault = reinterpret_cast<uint64_t*>(addr); // unmapped virtual address
+        uint64_t* fault = (uint64_t*)addr; // unmapped virtual address
         *fault = 0;
         pic_send_eoi(0x01);
         return;
@@ -74,7 +76,7 @@ void HandleKeyboardInterrupt(interrupt_frame* frame){
         // since the CPU still sends memory accesses through the GDT,
         // and the GDT checks for canonical addresses, a non-canonical
         // address will raise an exception
-        uint64_t* fault = reinterpret_cast<uint64_t*>(0xF0000000000ULL);
+        uint64_t* fault = (uint64_t*)0xF0000000000ULL;
         pic_send_eoi(0x01);
         return;
     }
@@ -107,7 +109,7 @@ void HandleKeyboardInterrupt(interrupt_frame* frame){
             ch = scancode_upper[scancode];
         }
         char str[2] = { ch, 0};
-        afstd::printf(str);
+        printf(str, 0);
     }
 
     lastScancode = scancode;    

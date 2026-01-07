@@ -6,5 +6,5 @@
 
 #include <stdint.h>
 
-extern "C" void isr80_stub();
-extern "C" void handle_syscall(InterruptRegisters regs);
+extern void isr80_stub();
+void handle_syscall(InterruptRegisters regs);

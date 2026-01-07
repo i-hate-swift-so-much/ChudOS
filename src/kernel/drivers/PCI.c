@@ -241,8 +241,8 @@ void ScanBusses(){
 
 
     for(uint8_t slot = 0; slot < 32; slot++){
-        header0 = { };
-        header1 = { };
+        header0;
+        header1;
         curHeader = PCI_ReadCommonHeader(bus, slot);
         ClassCode = curHeader.ClassCode;
         SubClass = curHeader.SubClass;

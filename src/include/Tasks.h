@@ -43,7 +43,7 @@
     (EI_OSABIx13 is undefined, EI_ABIVERSION is a second check)
 */
 
-struct elf_identifiers{
+typedef struct{
     uint8_t magic[4];
     uint8_t EI_CLASS;
     uint8_t EI_DATA;
@@ -51,10 +51,10 @@ struct elf_identifiers{
     uint8_t EI_OSABI;
     uint8_t EI_ABIVERSION;
     // reserved
-    uint8_t pad[7] = {};
-}__attribute__((packed));
+    uint8_t pad[7];
+}elf_identifiers ;
 
-struct ElfHeader64{
+typedef struct{
     elf_identifiers e_ident;
     uint16_t e_type;
     uint16_t e_machine;
@@ -69,9 +69,9 @@ struct ElfHeader64{
     uint16_t e_shentsize; // size of a section header entry, 0x40 for 64 bit programs
     uint16_t e_shnum; // number of entries in the section header table
     uint16_t e_shstrndx; // index of the section header table that contains the section names
-}__attribute__((packed));
+}ElfHeader64 ;
 
-struct ProgramHeader{
+typedef struct{
     uint32_t p_type; // segment type
     uint32_t p_flags; // segment-dependant flags
     uint64_t p_offset; // offset of the segment in the file image
@@ -80,4 +80,4 @@ struct ProgramHeader{
     uint64_t p_filesz; // size of the segment in the file 
     uint64_t p_memsz; // size of the segment in memory
     uint64_t p_align;
-}__attribute__((packed));
+}ProgramHeader ;

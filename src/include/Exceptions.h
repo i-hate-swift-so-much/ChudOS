@@ -5,9 +5,9 @@
 #include "IDT.h"
 #include "Memory.h"
 
-extern "C" void page_fault_stub();
-extern "C" void HandlePageFault(InterruptRegistersError* regs);
-extern "C" void GeneralProtectionFault(InterruptRegistersError* regs);
-extern "C" void InvalidOpcode(InterruptRegistersError* regs);
-extern "C" void gpf_stub();
-extern "C" void invalid_opcode_stub();
+extern void page_fault_stub();
+void HandlePageFault(InterruptRegistersError* regs);
+void GeneralProtectionFault(InterruptRegistersError* regs);
+void InvalidOpcode(InterruptRegistersError* regs);
+extern void gpf_stub();
+extern void invalid_opcode_stub();
