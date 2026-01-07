@@ -228,7 +228,6 @@ PCI_Header_0x1 PCI_ReadHeader1(PCI_Common_Header common, uint8_t bus, uint8_t sl
 }
 
 void ScanBusses(){
-    uint8_t bus = 0;
     PCI_Device Cur_Device;
     PCI_Common_Header curHeader;
     PCI_Header_0x0 header0;
@@ -240,41 +239,43 @@ void ScanBusses(){
     bool header_type;
 
 
-    for(uint8_t slot = 0; slot < 32; slot++){
-        header0;
-        header1;
-        curHeader = PCI_ReadCommonHeader(bus, slot);
-        ClassCode = curHeader.ClassCode;
-        SubClass = curHeader.SubClass;
-        HeaderType = curHeader.HeaderType;
-        ProgIF = curHeader.ProgIF;
+    for(uint8_t bus = 0; bus < 255; bus++){
+        for(uint8_t slot = 0; slot < 32; slot++){
+            header0;
+            header1;
+            curHeader = PCI_ReadCommonHeader(bus, slot);
+            ClassCode = curHeader.ClassCode;
+            SubClass = curHeader.SubClass;
+            HeaderType = curHeader.HeaderType;
+            ProgIF = curHeader.ProgIF;
 
-        if(curHeader.VendorID = 0x0FFFF){
+            if(curHeader.VendorID = 0x0FFFF){
+                Cur_Device.Header = curHeader;
+                Cur_Device.Header0 = header0;
+                Cur_Device.Header1 = header1;
+                Cur_Device.header_type = header_type;
+                Cur_Device.present = false;
+
+                continue;
+            }
+            
+
+            if(HeaderType == 0x00){
+                header0 = PCI_ReadHeader0(curHeader, bus, slot);
+                header_type = false;
+            }else if(HeaderType = 0x01){
+                header1 = PCI_ReadHeader1(curHeader, bus, slot);
+                header_type = true;
+            }
+
             Cur_Device.Header = curHeader;
             Cur_Device.Header0 = header0;
             Cur_Device.Header1 = header1;
             Cur_Device.header_type = header_type;
-            Cur_Device.present = false;
+            Cur_Device.present = true;
 
-            continue;
+            Devices[slot] = Cur_Device;
         }
-        
-
-        if(HeaderType == 0x00){
-            header0 = PCI_ReadHeader0(curHeader, bus, slot);
-            header_type = false;
-        }else if(HeaderType = 0x01){
-            header1 = PCI_ReadHeader1(curHeader, bus, slot);
-            header_type = true;
-        }
-
-        Cur_Device.Header = curHeader;
-        Cur_Device.Header0 = header0;
-        Cur_Device.Header1 = header1;
-        Cur_Device.header_type = header_type;
-        Cur_Device.present = true;
-
-        Devices[slot] = Cur_Device;
     }
 }
 
