@@ -10,10 +10,10 @@ void LoadIDT(){
     asm volatile("lidt %0" : : "m"(kernel_idtr_descriptor));
 }
 
-void SetIDTEntry(uint8_t entry_num, uint64_t handler_address, uint16_t selector, uint8_t flags) {
+void SetIDTEntry(uint8_t entry_num, uint64_t handler_address, uint16_t selector, uint8_t flags, uint8_t ist) {
     kernel_idt[entry_num].offset_low = handler_address & 0xFFFF;
     kernel_idt[entry_num].selector = selector;
-    kernel_idt[entry_num].ist = 0;
+    kernel_idt[entry_num].ist = ist & 0x111;
     kernel_idt[entry_num].flags = flags;
     kernel_idt[entry_num].offset_middle = (handler_address >> 16) & 0xFFFF;
     kernel_idt[entry_num].offset_high = (handler_address >> 32) & 0xFFFFFFFF;

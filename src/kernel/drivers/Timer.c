@@ -22,29 +22,42 @@ DateData ParseSeconds(uint64_t time){
     time /= 60;
     ret.hour = (uint16_t)(time % 60);
     time /= 24;
-
     ret.day = (uint16_t)time;
 
     return ret;
 }
 
-void TimerInterrupt(InterruptRegisters* frame){
+void PrintCycles(){
+    printf("[", 0);
+    char cycles[36];
+    int_to_char_array(TimerWindow, cycles, sizeof(cycles), 10);
+    printf(cycles, 0);
+    printf("]", 0);
+}
+
+void PrintSecondsSinceBoot(){
+    printf("[", 0);
+    char cycles[36];
+    int_to_char_array(SecondsSinceBoot, cycles, sizeof(cycles), 10);
+    printf(cycles, 0);
+    printf("]", 0);
+}
+
+void TimerInterrupt(InterruptRegisters* frame){    
     TimerWindow++;
     if(!enabled){ pic_send_eoi(0x00); return; }
     
     char ticks_str[22];
-    SecondsSinceBoot = TimerWindow / 1000;
+    TimerWindow %= 1000;
+    if(TimerWindow == 999){SecondsSinceBoot++;}
 
-    //TimerWindow %= 1000;
-
-    DateData date = ParseSeconds(SecondsSinceBoot+BiosTime);
     int_to_char_array(
-        date.second, 
+        SecondsSinceBoot,
         ticks_str, 
         sizeof(ticks_str),
-        2
+        16
     );
-    WriteString(ticks_str, 79-calculate_string_length(ticks_str), 1);
+    WriteString(ticks_str, 80-calculate_string_length(ticks_str), 24);
     
     pic_send_eoi(0x00);
 }

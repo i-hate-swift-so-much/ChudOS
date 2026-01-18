@@ -60,7 +60,7 @@
                 movq 16(%rsp), %rax // 16 instead of 8 due to %rax push
                 movq %rax, check_priv
                 popq %rax
-                subq $16, %rsp // padding for dummy values
+                subq $16, %rsp
                 jmp 3f
         2:
                 pushq %rax
@@ -147,6 +147,10 @@ invalid_opcode_stub:
         iretq
 
 gpf_stub:
+        cli
+        
+        cld
+
         check_cpl
 
         push_regs
@@ -156,21 +160,26 @@ gpf_stub:
 
         pushq $0x0D
 
-        mov %rsp, %rdi
+        movq %rsp, %rdi
         call GeneralProtectionFault
 
-        add $16, %rsp
-
-        popq %rax
-        movq %rax, %cr2
+        addq $16, %rsp
 
         pop_regs
 
         check_cpl_ret
 
+        addq $8, %rsp // skip the error code
+
+        sti
+
         iretq
 
 page_fault_stub:
+        cli
+        
+        cld
+        
         check_cpl
 
         push_regs
@@ -183,44 +192,50 @@ page_fault_stub:
         movq %rsp, %rdi
         call HandlePageFault
 
-        add $16, %rsp
+        addq $16, %rsp
 
         pop_regs
 
         check_cpl_ret
+
+        addq $8, %rsp // skip the error code
+
+        sti
 
         iretq
 
 timer_interrupt_stub:
-        check_cpl
+        cld
         
-        push_regs
+        check_cpl // adds stack padding for user values
+
+        push_regs // push general registers
 
         movq %cr2, %rax
         pushq %rax
 
-        pushq $0x08
+        pushq $0x20
 
         movq %rsp, %rdi
         call TimerInterrupt
 
-        add $16, %rsp
+        add $16, %rsp // skip the previous two pushes
 
-        pop_regs
+        pop_regs // pop general registers
 
-        check_cpl_ret
+        check_cpl_ret // deletes stack padding for iretq
 
         iretq
 
 sync_time_stub:
         check_cpl
-        
+
         push_regs
 
         movq %cr2, %rax
         pushq %rax
 
-        pushq $0x08
+        pushq $0x28
 
         movq %rsp, %rdi
         call SyncTime
@@ -234,6 +249,8 @@ sync_time_stub:
         iretq
 
 keyboard_stub:
+        cld
+
         check_cpl
 
         push_regs

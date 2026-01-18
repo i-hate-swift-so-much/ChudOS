@@ -3,18 +3,17 @@
 #include "VGA.h"
 #include "stdbool.h"
 
-
 int curX = 0;
 int curY = 0;
 
 void printf(const char* toPrint, int length){
         if(length == 0 || length == NULL){ length = calculate_string_length(toPrint); }
         for (int i = 0; i < length; i++){
-            
             if(curX > 79){ curX = 0; curY++; }
-            if(curX == 79 && curY == 24) {curX = 0; curY = 0; ClearScreen(); }
+            if(curX == 79 && curY == 24) { Scroll(1); }
             char curChar = toPrint[i];
             if(curChar == ' '){
+                WriteCharacter(' ', curX, curY);
                 char curWordScan;
                 int nextWordLength = 0;
                 for(int b = i+1; b < length; b++){
@@ -26,7 +25,7 @@ void printf(const char* toPrint, int length){
                 }
                 if(nextWordLength+curX > 79){
                     if(curY == 25){
-                        cls();
+                        NewLine();
                     }else{
                         curX = 0;
                         curY++;
@@ -36,13 +35,7 @@ void printf(const char* toPrint, int length){
                 }
                 //curX++;
             }else if(curChar == '\n'){
-                if(curY == 25){
-                    char temp_char[22];
-                    cls();
-                }else{
-                    curX = 0;
-                    curY++;
-                }
+                NewLine();
             }else if(curChar == '\0'){
                 break;
             }else if(curChar == '\b'){
@@ -71,11 +64,10 @@ void printf(const char* toPrint, int length){
                 WriteCharacter(' ', curX, curY);
             }else if(curChar == '\t'){
                 if(curX > 79-8 && curY == 24){
-                    cls();
+                    NewLine();
                     curX = 8-(79-curX);
-                    curY = 0;
                 }else if(curX > 79-8){
-                    curY++;
+                    NewLine();
                     curX = 8-(79-curX);
                 }else{
                     curX+=8;
@@ -83,12 +75,9 @@ void printf(const char* toPrint, int length){
             }else{
                 WriteCharacter(curChar, curX, curY);
                 if(curX == 79 && curY == 24){
-                    cls();
-                    curX = 0;
-                    curY = 0;
+                    NewLine();
                 }else if(curX == 79){
-                    curX = 0;
-                    curY++;
+                    NewLine();
                 }else{
                     curX++;
                 }
@@ -159,9 +148,7 @@ void int_to_char_array(int n, char* buffer, size_t buffer_size, int padding) {
             pad_string(padding, buffer, buffer_size, '0', 0);
         }
     }
-void int_to_char_array_hex(int n, char* buffer, size_t buffer_size, int padding) {
-    if(padding == NULL){ padding = 0; }    
-    
+void int_to_char_array_hex(int n, char* buffer, size_t buffer_size, int padding) {    
     bool negative = n < 0;
         
         n = abs(n);
@@ -188,8 +175,8 @@ void int_to_char_array_hex(int n, char* buffer, size_t buffer_size, int padding)
             digits++;
         }
 
-        size_t required_size = digits + 2 + (negative ? 1 : 0) + 1;
-        if (buffer_size < digits){
+        size_t required_size = digits + 2 + (negative ? 1 : 0);
+        if (buffer_size < required_size){
             return;
         }
 
@@ -197,7 +184,7 @@ void int_to_char_array_hex(int n, char* buffer, size_t buffer_size, int padding)
         // Extract digits from right to left and convert to ASCII characters
         if(negative){
             // Add null terminator at the end
-            buffer[digits+1] = '\0';
+            buffer[required_size+1] = '\0';
 
             // Convert with negative symbol
             for (int i = digits - 1; i >= 0; i--) {
@@ -217,6 +204,9 @@ void int_to_char_array_hex(int n, char* buffer, size_t buffer_size, int padding)
             buffer[lastI+2] = 'x';
             pad_string(padding, buffer, buffer_size, '0', 3);
         }else{
+            // Add null terminator at the end
+            buffer[required_size] = '\0';
+
             // Convert without negative symbol
             for (int i = digits - 1; i >= 0; i--) {
                 int remainder = n % 16;
@@ -301,9 +291,6 @@ void int_to_char_array_binary(int n, char* buffer, size_t buffer_size, int paddi
         }
     }
 void pad_string(int padding, char* buffer, int buffer_size, char filler, int start){
-    if(padding == NULL){ padding = 0; }
-    if(filler == NULL){ filler = '0'; }
-    
     if(buffer_size == 0){ return; }
         if(buffer_size <= start){ return; }
         if(buffer_size < padding){ return; }
@@ -351,3 +338,15 @@ void printf_centered(const char* toPrint, int length){
         setCursor(offset, curY);
         printf(toPrint, length);
     }
+void NewLine(){
+    if(curY == 79){ Scroll(1); return; }
+    else{
+        curX = 0;
+        curY++;
+    }
+}
+
+void Scroll(int n){
+    curX = 0;
+    VGA_Scroll(n);
+}

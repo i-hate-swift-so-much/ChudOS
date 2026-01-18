@@ -90,7 +90,12 @@ CODE_SEL equ gdt64_start.kernel64_code - gdt64_start
 DATA_SEL equ gdt64_start.kernel64_data - gdt64_start
 
 start_paging64:
+    call make_tss_entry
     lgdt [gdt64_descriptor]
+
+    ; load tss
+    mov ax, 0x28 ; GDT entry for TSS
+    ltr ax
 
     mov ebx, cr0
     and ebx, ~(1 << 31)
@@ -111,12 +116,6 @@ start_paging64:
     call fill_pd
     call fill_pdpt
     call fill_pml4
-    
-    mov eax, pml4_table
-    mov ebx, pdpt_kernel
-    mov ecx, pd_table_kernel
-    mov edx, pt
-    ;jmp halt64
 
     mov eax, pml4_table
     mov cr3, eax
@@ -130,13 +129,14 @@ start_paging64:
     or ebx, (1 << 31) | (1 << 0)
     mov cr0, ebx
 
-    ; Now reload the segment registers (CS, DS, SS, etc.) with the appropriate segment selectors...
+    ; Now reload the data segment registers (DS, SS, etc.) with the appropriate segment selectors...
 
     mov ax, DATA_SEL
     mov ds, ax
     mov es, ax
     mov fs, ax
     mov gs, ax
+    mov ss, ax
     
     ; Reload CS with a 64-bit code selector by performing a long jmp
 
@@ -157,15 +157,15 @@ fill_pml4:
 
     ret
 
-    .loop_code:        
+    .loop_code:  
+        cmp ecx, 0
+        je fill_pml4.end_loop
+
         push eax
         or eax, 0b00000011
         mov [edi], eax
         mov [edi+4], edx ; edx is zero
         pop eax
-
-        cmp ecx, 0
-        je fill_pml4.end_loop
 
         add edi, 8
         add eax, 0x1000
@@ -244,9 +244,9 @@ fill_pt:
     xor edx, edx
     mov ecx, 0
 
-    ; fills 16 page tables (64 MiB)
+    ; fills 24 page tables (64 MiB)
     .kfill_loop:
-        cmp ecx, 8192
+        cmp ecx, 12288
         je fill_pt.kfill_done
 
         push eax
@@ -265,29 +265,117 @@ fill_pt:
     .kfill_done:
         ret
 
+TSS_start:
+    .Reserved_0:
+        dd 0x00
+    .RSP0:
+        dq 0xFFFF0
+    .RSP1:
+        dq 0x00000
+    .RSP2:
+        dq 0x00000
+    .Reserved_1:
+        dq 0x00000
+    .IST1:
+        dq 0x3FFF0
+    .IST2:
+        dq 0x3EFF0
+    .IST3:
+        dq 0x3DFF0
+    .IST4:
+        dq 0x3BFF0
+    .IST5:
+        dq 0x3CFF0
+    .IST6:
+        dq 0x3AFF0
+    .IST7:
+        dq 0x39FF0
+    .Reserved_2:
+        dq 0x00000
+    .Reserved_3:
+        dq 0x00000
+    .Reserved_4:
+        dw 0x00000
+    .IOPB:
+        dw 0x10000
+TSS_end:
+
+TSS_size equ TSS_end-TSS_start-1
+
 ; since paging exists, we don't need a base or limit for segements now
 gdt64_start:
-    .null_descriptor64:
+    .null_descriptor64: ; offset 0x00
         dq 0x0
-    .kernel64_code:
+    .kernel64_code: ; offset 0x08
         dw 0xFFFF ; limit
         dw 0x0 ; base
         db 0x0 ; base
         db 0b10011010 ; access byte, actually needed
         db 0b10101111 ; flags limit n shit, this just means its 64 bits
         db 0x0 ; base
-    .kernel64_data:
+    .kernel64_data: ; offset 0x10
         dw 0xFFFF ; limit
         dw 0x0 ; base
         db 0x0 ; base
         db 0b10010010 ; access byte, actually needed
         db 0b10101111 ; flags limit n shit, this just means its 64 bits
         db 0x0 ; base
+    .user64_code: ; offset 0x18
+        dw 0xFFFF ; limit
+        dw 0x0 ; base
+        db 0x0 ; base
+        db 0b11111010 ; access byte, actually needed
+        db 0b10101111 ; flags limit n shit, this just means its 64 bits
+        db 0x0 ; base
+    .user64_data: ; offset 0x20
+        dw 0xFFFF ; limit
+        dw 0x0 ; base
+        db 0x0 ; base
+        db 0b11110010 ; access byte, actually needed
+        db 0b10101111 ; flags limit n shit, this just means its 64 bits
+        db 0x0 ; base
+    .tss_segment: ; offset 0x28
+        tss_limit0: dw 0
+        tss_base0: dw 0
+        tss_base1: db 0
+        db 0b10001001
+        tss_flags: db 0
+        tss_base2: db 0
+        tss_base3: dd 0
+        dd 0x0
 
 gdt64_end:
 gdt64_descriptor:
     dw gdt64_end - gdt64_start - 1
     dq gdt64_start
+
+make_tss_entry:
+    mov eax, TSS_size
+    mov [tss_limit0], ax
+
+    mov eax, TSS_start
+    mov [tss_base0], ax
+
+    mov eax, TSS_start
+    shr eax, 16
+    mov [tss_base1], al
+
+    mov eax, 0b00100000
+    mov ebx, TSS_size
+    shr ebx, 16
+    and ebx, 0b1111
+    or eax, ebx
+    mov [tss_flags], al
+
+    mov eax, TSS_start
+    shr eax, 24
+    mov [tss_base2], al
+
+    mov eax, 0
+    mov [tss_base3], eax
+
+    ret
+
 
 ; long mode with 4 level paging 🤤
 [bits 64]
@@ -299,6 +387,7 @@ start64:
     mov fs, ax
     mov gs, ax
     mov ss, ax
+    mov rbp, 0x00001000
 
     cli
 
@@ -308,7 +397,7 @@ start64:
     mov byte [0xB8002], 'B'
     mov byte [0xB8003], 0x0F
 
-    jmp 0x80000 ; kernel
+    jmp 0x40000 ; kernel setup
 
 halt64_2:
     cli

@@ -5,7 +5,11 @@
 
 #define BUS_COUNT
 
+PCI_Device* AHCI_Controller = NULL;
+
 PCI_Device Devices[256];
+
+uint32_t device_count;
 
 uint64_t TwoPieceBARtoPhysAddress(uint32_t BAR0, uint32_t BAR1){
     uint64_t LOWER = ((uint64_t)BAR0); // the lower 32 bits of the address, indicated by BAR0, should be converted to a uint64_t and nothing else shall occur.
@@ -19,246 +23,147 @@ uint32_t PCI_CreateConfigAddress(uint8_t bus, uint8_t slot, uint8_t func, uint8_
     uint32_t lfunc = (uint32_t)func;
 
     uint32_t address = 
-        (uint32_t)((lbus << 16) | 
-        (lslot << 1) | 
-        (lfunc << 8) |
-        (offset & 0xFC) | 
-        ((uint32_t)0x80000000));
-
+        (uint32_t)
+        (
+            (lbus << 16) |
+            (lslot << 11) |
+            (lfunc << 8) |
+            (offset & 0xFC) |
+            ((uint32_t)0x80000000) // set enable bit
+        );
     return address;
+}
+
+uint32_t PCI_ReadL(uint8_t bus, uint8_t slot, uint8_t offset){
+    uint32_t Address = PCI_CreateConfigAddress(bus, slot, 0, offset);
+
+    outl(PCI_CONFIG_ADDRESS, Address);
+    return inl(PCI_CONFIG_DATA);
+}
+
+uint16_t PCI_ReadW(uint8_t bus, uint8_t slot, uint8_t offset){
+    uint32_t Address = PCI_CreateConfigAddress(bus, slot, 0, offset);
+
+    outl(PCI_CONFIG_ADDRESS, Address);
+    uint16_t temp;
+    temp = (uint16_t)((inl(PCI_CONFIG_DATA) >> ((offset & 2) * 8)) & 0xFFFF);
+    return temp;
+}
+
+void PCI_PrintCommonHeader(PCI_Common_Header header){
+    char VendorID[10];
+    int_to_char_array_hex(header.VendorID, VendorID, sizeof(VendorID), 0);
+    char DeviceID[10];
+    int_to_char_array_hex(header.DeviceID, DeviceID, sizeof(DeviceID), 0);
+    char Command[20];
+    int_to_char_array_binary(header.Command, Command, sizeof(Command), 0);
+    char Status[20];
+    int_to_char_array_binary(header.Status, Status, sizeof(Status), 0);
+
+    char RevisionID[10];
+    int_to_char_array_hex(header.RevisionID, RevisionID, sizeof(RevisionID), 0);
+    char ProgIF[10];
+    int_to_char_array_hex(header.ProgIF, ProgIF, sizeof(ProgIF), 0);
+    char SubClass[10];
+    int_to_char_array_hex(header.SubClass, SubClass, sizeof(SubClass), 0);
+    char ClassCode[10];
+    int_to_char_array_hex(header.ClassCode, ClassCode, sizeof(ClassCode), 0);
+
+
+    char CacheLineSize[10];
+    int_to_char_array_hex(header.CacheLineSize, CacheLineSize, sizeof(CacheLineSize), 0);
+    char LatencyTimer[10];
+    int_to_char_array_hex(header.LatencyTimer, LatencyTimer, sizeof(LatencyTimer), 0);
+    char HeaderType[10];
+    int_to_char_array_hex(header.HeaderType, HeaderType, sizeof(HeaderType), 0);
+    char BIST[10];
+    int_to_char_array_hex(header.BIST, BIST, sizeof(BIST), 0);
+
+    printf("VendorID:        ",0); printf(VendorID, 0); printf("\n", 0);
+    printf("DeviceID:        ",0); printf(DeviceID, 0); printf("\n", 0);
+    printf("Command:         ",0); printf(Command, 0); printf("\n", 0);
+    printf("Status:          ",0); printf(Status, 0); printf("\n", 0);
+
+    printf("RevisionID:      ",0); printf(RevisionID, 0); printf("\n", 0);
+    printf("ProgIF:          ",0); printf(ProgIF, 0); printf("\n", 0);
+    printf("SubClass:        ",0); printf(SubClass, 0); printf("\n", 0);
+    printf("ClassCode:       ",0); printf(ClassCode, 0); printf("\n", 0);
+    
+    printf("CacheLineSize:   ",0); printf(CacheLineSize, 0); printf("\n", 0);
+    printf("LatencyTimer:    ",0); printf(LatencyTimer, 0); printf("\n", 0);
+    printf("HeaderType:      ",0); printf(HeaderType, 0); printf("\n", 0);
+    printf("BIST:            ",0); printf(BIST, 0); printf("\n", 0);
 }
 
 PCI_Common_Header PCI_ReadCommonHeader(uint8_t bus, uint8_t slot){
     PCI_Common_Header ret;
-    uint32_t temp;
-
-    uint8_t offset = 0;
-    
-    // Get VendorID
-    uint32_t address = PCI_CreateConfigAddress(bus, slot, 0, offset);
-    outl(PCI_CONFIG_ADDRESS, address);
-    temp = inl(PCI_CONFIG_DATA);
-    ret.VendorID = (uint16_t)((temp >> 0) & 0xFFFF);
-    ret.DeviceID = (uint16_t)((temp >> 16) & 0xFFFF);
-    offset += 0x4;
-    
-    address = PCI_CreateConfigAddress(bus, slot, 0, offset);
-    outl(PCI_CONFIG_ADDRESS, address);
-    temp = inl(PCI_CONFIG_DATA);
-    ret.Command = (uint16_t)((temp >> 0) & 0xFFFF);
-    ret.Status = (uint16_t)((temp >> 16) & 0xFFFF);
-    offset += 0x4;
-
-    address = PCI_CreateConfigAddress(bus, slot, 0, offset);
-    outl(PCI_CONFIG_ADDRESS, address);
-    temp = inl(PCI_CONFIG_DATA);
-    ret.RevisionID = (temp >> 0) & 0xFF;
-    ret.ProgIF = (temp >> 8) & 0xFF;
-    ret.SubClass = (temp >> 16) & 0xFF;
-    ret.ClassCode = (temp >> 24) & 0xFF;
-    offset += 0x4;
-
-    address = PCI_CreateConfigAddress(bus, slot, 0, offset);
-    outl(PCI_CONFIG_ADDRESS, address);
-    temp = inl(PCI_CONFIG_DATA);
-    ret.CacheLineSize = (temp >> 0) & 0xFF;
-    ret.LatencyTimer = (temp >> 8) & 0xFF;
-    ret.HeaderType = (temp >> 16) & 0xFF;
-    ret.BIST = (temp >> 24) & 0xFF;
+    uint32_t* retP = (uint32_t*)(&ret);
+    /*
+        hope this works, basically treats the common header
+        as memory, then does a memcopy type thing to paste data
+        straight into the struct without using real struct access
+        more efficient and hopefully optimized.
+    */
+    for(int i = 0; i < 4; i++){
+        uint32_t temp = PCI_ReadL(bus, slot, i*4);
+        retP[i] = temp;
+    }
 
     return ret;
 }
 
 PCI_Header_0x0 PCI_ReadHeader0(PCI_Common_Header common, uint8_t bus, uint8_t slot){
     PCI_Header_0x0 ret;
-    uint32_t temp;
+    uint32_t* retP = (uint32_t*)(&ret);
 
     ret.Common_Header = common;
 
-    uint16_t offset = 0x10;
-
-    uint32_t address = PCI_CreateConfigAddress(bus, slot, 0, offset);
-    outl(PCI_CONFIG_ADDRESS, address);
-    ret.BAR0 = inl(PCI_CONFIG_DATA);
-    offset += 4;
-
-    address = PCI_CreateConfigAddress(bus, slot, 0, offset);
-    outl(PCI_CONFIG_ADDRESS, address);
-    ret.BAR1 = inl(PCI_CONFIG_DATA);
-    offset += 4;
-
-    address = PCI_CreateConfigAddress(bus, slot, 0, offset);
-    outl(PCI_CONFIG_ADDRESS, address);
-    ret.BAR2 = inl(PCI_CONFIG_DATA);
-    offset += 4;
-
-    address = PCI_CreateConfigAddress(bus, slot, 0, offset);
-    outl(PCI_CONFIG_ADDRESS, address);
-    ret.BAR3 = inl(PCI_CONFIG_DATA);
-    offset += 4;
-
-    address = PCI_CreateConfigAddress(bus, slot, 0, offset);
-    outl(PCI_CONFIG_ADDRESS, address);
-    ret.BAR4 = inl(PCI_CONFIG_DATA);
-    offset += 4;
-
-    address = PCI_CreateConfigAddress(bus, slot, 0, offset);
-    outl(PCI_CONFIG_ADDRESS, address);
-    ret.BAR5 = inl(PCI_CONFIG_DATA);
-    offset += 4;
-
-    address = PCI_CreateConfigAddress(bus, slot, 0, offset);
-    outl(PCI_CONFIG_ADDRESS, address);
-    ret.Cardbus_CIS = inl(PCI_CONFIG_DATA);
-    offset += 4;
-
-    address = PCI_CreateConfigAddress(bus, slot, 0, offset);
-    outl(PCI_CONFIG_ADDRESS, address);
-    temp = inl(PCI_CONFIG_DATA);
-    ret.Subsystem_Vendor_ID = (uint16_t)((temp >> 0) & 0xFFFF);
-    ret.Subsystem_ID = (uint16_t)((temp >> 16) & 0xFFFF);
-    offset += 4;
-
-    address = PCI_CreateConfigAddress(bus, slot, 0, offset);
-    outl(PCI_CONFIG_ADDRESS, address);
-    ret.ExpansionROM = inl(PCI_CONFIG_DATA);
-    offset += 4;
-
-    address = PCI_CreateConfigAddress(bus, slot, 0, offset);
-    outl(PCI_CONFIG_ADDRESS, address);
-    temp = inl(PCI_CONFIG_DATA);
-    ret.CapabilityPointer = (uint16_t)((temp >> 0) & 0xFF);
-    offset += 8;
-
-    address = PCI_CreateConfigAddress(bus, slot, 0, offset);
-    outl(PCI_CONFIG_ADDRESS, address);
-    temp = inl(PCI_CONFIG_DATA);
-    ret.InterruptLine = (uint8_t)((temp >> 0) & 0xFF);
-    ret.InterruptPIN = (uint8_t)((temp >> 8) & 0xFF);
-    ret.MinGrant = (uint8_t)((temp >> 16) & 0xFF);
-    ret.MaxLatency = (uint8_t)((temp >> 24) & 0xFF);
+    for(int i = 0; i < 16; i++){
+        uint32_t temp = PCI_ReadL(bus, slot, (i+4)*4);
+        retP[i] = temp;
+    }
 
     return ret;
 }
 
 PCI_Header_0x1 PCI_ReadHeader1(PCI_Common_Header common, uint8_t bus, uint8_t slot){
     PCI_Header_0x1 ret;
-    uint32_t temp;
+    uint32_t* retP = (uint32_t*)(&ret);
 
     ret.Common_Header = common;
 
-    uint16_t offset = 0x10;
+    for(int i = 0; i < 16; i++){
+        uint32_t temp = PCI_ReadL(bus, slot, (i+4)*4);
+        retP[i] = temp;
+    }
 
-    uint32_t address = PCI_CreateConfigAddress(bus, slot, 0, offset);
-    outl(PCI_CONFIG_ADDRESS, address);
-    ret.BAR0 = inl(PCI_CONFIG_DATA);
-    offset += 4;
-
-    address = PCI_CreateConfigAddress(bus, slot, 0, offset);
-    outl(PCI_CONFIG_ADDRESS, address);
-    ret.BAR1 = inl(PCI_CONFIG_DATA);
-    offset += 4;
-
-    address = PCI_CreateConfigAddress(bus, slot, 0, offset);
-    outl(PCI_CONFIG_ADDRESS, address);
-    temp = inl(PCI_CONFIG_DATA);
-    ret.PrimaryBusNumber = (uint8_t)((temp >> 0) & 0xFF);
-    ret.SecondaryBusNumber = (uint8_t)((temp >> 8) & 0xFF);
-    ret.SubordinateBusNumber = (uint8_t)((temp >> 16) & 0xFF);
-    ret.SecondaryLatencyTimer = (uint8_t)((temp >> 24) & 0xFF);
-    offset += 4;
-
-    address = PCI_CreateConfigAddress(bus, slot, 0, offset);
-    outl(PCI_CONFIG_ADDRESS, address);
-    temp = inl(PCI_CONFIG_DATA);
-    ret.IOBase = (uint8_t)((temp >> 0) & 0xFF);
-    ret.IOLimit = (uint8_t)((temp >> 8) & 0xFF);
-    ret.SecondaryStatus = (uint16_t)((temp >> 16) & 0xFFFF);
-    offset += 4;
-
-    address = PCI_CreateConfigAddress(bus, slot, 0, offset);
-    outl(PCI_CONFIG_ADDRESS, address);
-    temp = inl(PCI_CONFIG_DATA);
-    ret.MemoryBase = (uint16_t)((temp >> 0) & 0xFFFF);
-    ret.MemoryLimit = (uint16_t)((temp >> 16) & 0xFFFF);
-    offset += 4;
-
-    address = PCI_CreateConfigAddress(bus, slot, 0, offset);
-    outl(PCI_CONFIG_ADDRESS, address);
-    temp = inl(PCI_CONFIG_DATA);
-    ret.PrefetchMemoryBaseLower = (uint16_t)((temp >> 0) & 0xFFFF);
-    ret.PrefetchMemoryLimitLower = (uint16_t)((temp >> 16) & 0xFFFF);
-    offset += 4;
-
-    address = PCI_CreateConfigAddress(bus, slot, 0, offset);
-    outl(PCI_CONFIG_ADDRESS, address);
-    ret.PrefetchBaseUpper = inl(PCI_CONFIG_DATA);
-    offset += 4;
-
-    address = PCI_CreateConfigAddress(bus, slot, 0, offset);
-    outl(PCI_CONFIG_ADDRESS, address);
-    ret.PrefetchLimitUpper = inl(PCI_CONFIG_DATA);
-    offset += 4;
-
-    address = PCI_CreateConfigAddress(bus, slot, 0, offset);
-    outl(PCI_CONFIG_ADDRESS, address);
-    temp = inl(PCI_CONFIG_DATA);
-    ret.IOBaseUpper = (uint16_t)((temp >> 0) & 0xFFFF);
-    ret.IOLimitUpper = (uint16_t)((temp >> 16) & 0xFFFF);
-    offset += 4;
-
-    address = PCI_CreateConfigAddress(bus, slot, 0, offset);
-    outl(PCI_CONFIG_ADDRESS, address);
-    temp = inl(PCI_CONFIG_DATA);
-    ret.CapabilityPointer = (uint16_t)((temp >> 0) & 0xFF);
-    offset += 4;
-
-    address = PCI_CreateConfigAddress(bus, slot, 0, offset);
-    outl(PCI_CONFIG_ADDRESS, address);
-    temp = inl(PCI_CONFIG_DATA);
-    ret.ExpansionROM = (uint32_t)((temp >> 0) & 0xFF);
-    offset += 4;
-
-    address = PCI_CreateConfigAddress(bus, slot, 0, offset);
-    outl(PCI_CONFIG_ADDRESS, address);
-    temp = inl(PCI_CONFIG_DATA);
-    ret.InterruptLine = (uint8_t)((temp >> 0) & 0xFF);
-    ret.InterruptPIN = (uint8_t)((temp >> 8) & 0xFF);
-    ret.BridgeControl = (uint16_t)((temp >> 16) & 0xFF);
+    return ret;
 }
 
 void ScanBusses(){
-    PCI_Device Cur_Device;
-    PCI_Common_Header curHeader;
-    PCI_Header_0x0 header0;
-    PCI_Header_0x1 header1;
     uint8_t ClassCode;
     uint8_t SubClass;
     uint8_t HeaderType;
     uint8_t ProgIF;
     bool header_type;
+    int deviceRun = 0;
 
-
-    for(uint8_t bus = 0; bus < 255; bus++){
+    // loop through every bus and every slot of said bus, then add whichever device we've scanned to devices.
+    // only scans 8 busses
+    for(uint8_t bus = 0; bus < 8; bus++){
         for(uint8_t slot = 0; slot < 32; slot++){
-            header0;
-            header1;
-            curHeader = PCI_ReadCommonHeader(bus, slot);
+            PCI_Device Cur_Device;
+            PCI_Header_0x0 header0;
+            PCI_Header_0x1 header1;
+            PCI_Common_Header curHeader = PCI_ReadCommonHeader(bus, slot);
             ClassCode = curHeader.ClassCode;
             SubClass = curHeader.SubClass;
             HeaderType = curHeader.HeaderType;
             ProgIF = curHeader.ProgIF;
 
-            if(curHeader.VendorID = 0x0FFFF){
-                Cur_Device.Header = curHeader;
-                Cur_Device.Header0 = header0;
-                Cur_Device.Header1 = header1;
-                Cur_Device.header_type = header_type;
-                Cur_Device.present = false;
-
+            if(curHeader.VendorID == 0xFFFF){
                 continue;
             }
-            
 
             if(HeaderType == 0x00){
                 header0 = PCI_ReadHeader0(curHeader, bus, slot);
@@ -273,12 +178,80 @@ void ScanBusses(){
             Cur_Device.Header1 = header1;
             Cur_Device.header_type = header_type;
             Cur_Device.present = true;
+            Cur_Device.bus = bus;
+            Cur_Device.slot = slot;
 
-            Devices[slot] = Cur_Device;
+            Devices[deviceRun] = Cur_Device;
+
+            if(curHeader.ClassCode == 0x01 && curHeader.SubClass == 0x06 && curHeader.ProgIF == 0x01){
+                // this class data indicates that the devices is a SATA device using the AHCI controller.
+                AHCI_Controller = &Devices[deviceRun];
+            }
+            deviceRun++;
         }
     }
+    device_count = deviceRun;
 }
 
-void PCI_Config_Write(uint8_t bus, uint8_t slot){
+void pci_writeb(uint32_t address, uint8_t data){
+    outl(PCI_CONFIG_ADDRESS, address);
+    outb(PCI_CONFIG_DATA, data);
+}
 
+void pci_writew(uint32_t address, uint16_t data){
+    outl(PCI_CONFIG_ADDRESS, address);
+    outw(PCI_CONFIG_DATA, data);
+}
+
+void PCI_Update_Important_Info(PCI_Device* device){
+    uint8_t bus = device->bus;
+    uint8_t slot = device-> slot;
+    
+    uint32_t COMBO = PCI_ReadL(bus, slot, 0x4);
+
+    uint16_t COMMAND = (uint16_t)(COMBO & 0xFFF);
+    uint16_t STATUS = (uint16_t)((COMBO >> 16) & 0xFFF);
+
+    device->Header.Command = COMMAND;
+    device->Header.Status = STATUS;
+}
+
+void PCI_Write_Command_Register(PCI_Device* device, PCI_Command_Register command){
+    uint8_t bus = device->bus;
+    uint8_t slot = device->slot;
+    
+    uint32_t address = PCI_CreateConfigAddress(bus, slot, 0, 0x4);
+
+    uint16_t New_Command = (
+        command.IO_Space |
+        (command.Memory_Space << 1) |
+        (command.Bus_Master << 2) |
+        (command.Parity_ERR_Response << 6) |
+        (command.SERR_Enable << 8) |
+        (command.Interrupt_Disable << 10)
+    );
+
+    pci_writew(address, New_Command);
+
+    PCI_Update_Important_Info(device);
+}
+
+void PCI_Write_Status_Register(PCI_Device* device, PCI_Command_Register command){
+    uint8_t bus = device->bus;
+    uint8_t slot = device->slot;
+    
+    uint32_t address = PCI_CreateConfigAddress(bus, slot, 0, 0x6);
+
+    uint16_t New_Command = (
+        command.IO_Space |
+        (command.Memory_Space << 1) |
+        (command.Bus_Master << 2) |
+        (command.Parity_ERR_Response << 6) |
+        (command.SERR_Enable << 8) |
+        (command.Interrupt_Disable << 10)
+    );
+
+    pci_writew(address, New_Command);
+
+    PCI_Update_Important_Info(device);
 }

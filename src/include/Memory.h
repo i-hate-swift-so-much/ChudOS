@@ -6,14 +6,22 @@
 #include "VGA.h"
 #include "stdbool.h"
 
+
 /*
     This header provides functions for the allocation of pages in virtual memory,
     along with various structs defining how memory should behave. Critical in the
     kernel as it has no real job without memory allocation and user programs.
 */
 
-#define KERNEL_PAGE_PERMISSIONS 0b00000011
-#define USER_PAGE_PERMISSIONS 0b00000111
+#define VIRTUAL_MEMORY_BARRIER 0x100000000 // kernel is this address, user is above. 4 gib.
+
+#define KERNEL_FLAGS 0b00000011
+#define KERNEL_FLAGS_UNCACHEABLE 0b00010011
+
+#define USER_FLAGS 0b00000111
+#define USER_FLAGS_UNCACHEABLE 0b00010111
+
+#define E820_BUFFER_ADDRESS 0xF000
 
 // This is pratically a bitmap divided into 8 chunks.
 // If a bit equals one, it's subesquent page is loaded.
@@ -47,6 +55,15 @@ struct PagePermissions_s{
 }__attribute__((packed));
 
 typedef struct PagePermissions_s PagePermissions;
+
+struct E820_Range_Descriptor_S{
+    uint64_t Base_Address;
+    uint64_t Length;
+    uint32_t Type;
+    uint32_t Extension;
+}__attribute__((packed));
+
+typedef struct E820_Range_Descriptor_S E820_Range_Descriptor;
 
 // This dictates the flags which should be used for a page
 // and the base address of a page.
@@ -102,6 +119,11 @@ uint8_t mem_GetBit(uint16_t PageDescriptorTable, uint16_t PageTable, uint16_t Pa
 
 void mem_SetBit(uint16_t PageDescriptorTable, uint16_t PageTable, uint16_t Page);
 
+// literally memset except it copies by the word.
+void memsetw(void* dest, uint16_t value, size_t bytes);
+
+void memset(void* dest, uint8_t value, size_t bytes);
+
 void InitMem();
 
 // Allocates pages
@@ -113,6 +135,8 @@ void* malloc(Task* TaskDetails);
 
 void* memcpy(void* dest, const void* src, size_t n);
 
+void* memcpyw(void* dest, const void* src, size_t n);
+
 uint64_t* CalculatePagePhysicalEntryAddress(PageEntries* entries);
 
 PageEntries ExtractPageEntries(uint64_t VirtualAddress);
@@ -120,3 +144,19 @@ PageEntries ExtractPageEntries(uint64_t VirtualAddress);
 uint64_t CalculatePageAddress(PageEntries entries);
 
 PageDetails ParsePTE(uint64_t* PTE);
+
+void* malloc_specific(Task* TaskDetails, uint64_t RequestedAddress, PagePermissions* permissions);
+
+void* create_pdpt();
+
+void* create_pd();
+
+void mem_bitmap_dump(uint16_t PT);
+
+void* find_free_pdpt();
+
+void* find_free_pml4();
+
+PageEntries FindNextFreePhysical();
+
+void Enumerate_E820();

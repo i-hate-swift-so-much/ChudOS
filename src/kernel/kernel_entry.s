@@ -1,5 +1,6 @@
 global _start:
 
+[bits 64]
 section .text:
 _start:
     extern kernel_main
@@ -14,7 +15,7 @@ _start:
     ;mov rdi, rax ; is VBE available?
     ;mov rsi, rbx ; VBEModeInfoBlock pointer
 
-    mov rax, 0x7FFFF
+    mov rax, 0x9FFF0
     mov rsp, rax
     mov rbp, rax
 

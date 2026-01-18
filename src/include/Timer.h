@@ -22,3 +22,5 @@ void sync_time_stub();
 void TimerInterrupt(InterruptRegisters* frame);
 void SyncTime(InterruptRegisters* frame);
 void SetTimerFrequency(uint16_t hz);
+void PrintCycles();
+void PrintSecondsSinceBoot();

@@ -44,16 +44,6 @@
 #define PCI_CMD_MRL 0x0E
 #define PCI_CMD_MRI 0x0F
 
-// command register layout (IMPORTANT!!!)
-// bit 0: 1 means device can respond to I/O accesses
-// bit 1: 1 means device can respond to mem accesses
-// bit 2: 1 means device can act as the master on bus
-// bit 3: 1 means device can monitor special cycles
-// bit 4: 1 means enable memory write and invalidate
-// bit 5: 1 means device can VGA pallette snoop for whatever reason
-// bit 6: 1 means device reacts to parity errors in its normal way, otherwise it sets status parity error bit
-// bit 7: 
-
 typedef struct{
     uint16_t VendorID;
     uint16_t DeviceID;
@@ -67,11 +57,9 @@ typedef struct{
     uint8_t LatencyTimer;
     uint8_t HeaderType;
     uint8_t BIST;
-    bool MF;
-}PCI_Common_Header ;
+}PCI_Common_Header;
 
 typedef struct{
-    PCI_Common_Header Common_Header;
     uint32_t BAR0;
     uint32_t BAR1;
     uint32_t BAR2;
@@ -89,10 +77,10 @@ typedef struct{
     uint8_t InterruptPIN;
     uint8_t MinGrant;
     uint8_t MaxLatency;
-}PCI_Header_0x0 ;
+    PCI_Common_Header Common_Header;
+}PCI_Header_0x0;
 
 typedef struct{
-    PCI_Common_Header Common_Header;
     uint32_t BAR0;
     uint32_t BAR1;
     uint8_t PrimaryBusNumber;
@@ -116,7 +104,8 @@ typedef struct{
     uint8_t InterruptLine;
     uint8_t InterruptPIN;
     uint16_t BridgeControl;
-}PCI_Header_0x1 ;
+    PCI_Common_Header Common_Header;
+}PCI_Header_0x1;
 
 typedef struct{
     PCI_Common_Header Header;
@@ -124,8 +113,31 @@ typedef struct{
     PCI_Header_0x1 Header1;
     bool header_type;
     bool present;
-}PCI_Device ;
+    uint8_t slot;
+    uint8_t bus;
+}PCI_Device;
 
-extern PCI_Device Main_SATA_Controller;
+typedef struct{
+    bool IO_Space:1; // 1 = device can respond to I/O space accesses
+    bool Memory_Space:1; // 1 = device can respond to memory space accesses
+    bool Bus_Master:1; // 1 = device can perform direct memory access
+    bool Parity_ERR_Response:1; // 1 = device will take normal action when a parity error occurs, otherwise it will set bit 15 in the status register
+    bool SERR_Enable:1; // 1 = SERR# driver is enabled
+    bool Interrupt_Disable:1; // 1 = device will have interrupts disabled
+}PCI_Command_Register;
+
+typedef struct{
+    uint8_t IO_Status:1; // writing to this is the same as EOI
+
+}PCI_Status_Register;
+
+extern PCI_Device* AHCI_Controller;
+
 uint32_t PCI_CreateConfigAddress(uint8_t bus, uint8_t slot, uint8_t func, uint8_t offset);
 PCI_Common_Header PCI_ReadCommonHeader(uint8_t bus, uint8_t slot);
+void PCI_PrintCommonHeader(PCI_Common_Header header);
+void ScanBusses();
+void pci_writeb(uint32_t address, uint8_t data);
+void pci_writew(uint32_t address, uint16_t data);
+void PCI_Update_Important_Info(PCI_Device* device);
+void PCI_Write_Command_Register(PCI_Device* device, PCI_Command_Register command);

@@ -1,7 +1,5 @@
 [org 0x1000]
 
-; This bootloader makes use of the VBE 2.0 standard 
-
 mov [drive_boot], dl
 
 dap_kernel: ; read the kernel into memory
@@ -11,6 +9,14 @@ dap_kernel: ; read the kernel into memory
     dw 0x0000
     dw 0x8000
     dq 400
+
+dap_kernel_setup: ; read the kernel into memory
+    db 0x10
+    db 0x00
+    dw 127
+    dw 0x0000
+    dw 0x4000
+    dq 600
 
 dap_boot2_1: ; read the first half of the third stage into memory
     db 0x10
@@ -53,8 +59,13 @@ load_stage3:
     mov si, dap_kernel
     int 0x13
     jc read_error
-    mov byte [0xB8004], 'A'
-    mov byte [0xB8005], 0x0F
+
+    ; load kernel setup
+    mov ah, 0x42
+    mov dl, [drive_boot]
+    mov si, dap_kernel_setup
+    int 0x13
+    jc read_error
 
     ; load boot3
     mov ah, 0x42
@@ -62,8 +73,6 @@ load_stage3:
     mov si, dap_boot2_1
     int 0x13
     jc read_error
-    mov byte [0xB8006], 'A'
-    mov byte [0xB8007], 0x0F
 
     ; load boot3
     mov ah, 0x42
@@ -71,8 +80,6 @@ load_stage3:
     mov si, dap_boot2_2
     int 0x13
     jc read_error
-    mov byte [0xB8008], 'A'
-    mov byte [0xB8009], 0x0F
 
     ;call set_VBE_mode
     mov si, boot_msg_2_1
@@ -85,66 +92,30 @@ load_stage3:
 
 get_upper_memory:
     ; uses bios call 0x15 eax=0xE820 to get info about the upper memory.
-    mov ax, Range_Descriptor_Struct
-    mov es, ax
-    xor di, di
-    mov ebx, 0
-    mov [e820_cur_offset], 0x0
+    mov [e820_cur_offset], 0
 
-    mov dword [0x5000], 0
-
+    xor ebx, ebx
     .next_loop:
+    mov ax, 0xF00
+    mov es, ax ; set ES to 0xF000, which is used as the base address of the list of memory
+    mov edi, [e820_cur_offset]
     xor eax, eax
     mov ax, 0xE820 ; only the lower 16 bits of eax should be set
-    mov ecx, 20
+    mov ecx, 24
     mov edx, 0x534D4150
     int 0x15
     jc get_upper_memory.e820_fail
 
-    cmp eax, 0x534D4150
-    jne get_upper_memory.e820_fail
-    
-    push es
-    push di
     pusha
 
-    mov ax, 0x5000
-    mov es, ax
-    mov di, [e820_cur_offset]
+    cmp eax, 0x534D4150
+    jne get_upper_memory.e820_fail
 
-    mov ax, [Range_Descriptor_Struct.BaseAddressLow1]
-    mov [es:di+4], ax
-    mov ax, [Range_Descriptor_Struct.BaseAddressLow2]
-    mov [es:di+6], ax
-    mov ax, [Range_Descriptor_Struct.BaseAddressHigh1]
-    mov [es:di+8], ax
-    mov ax, [Range_Descriptor_Struct.BaseAddressHigh2]
-    mov [es:di+10], ax
-    mov ax, [Range_Descriptor_Struct.LengthLow1]
-    mov [es:di+12], ax
-    mov ax, [Range_Descriptor_Struct.LengthLow2]
-    mov [es:di+14], ax
-    mov ax, [Range_Descriptor_Struct.LengthHigh1]
-    mov [es:di+16], ax
-    mov ax, [Range_Descriptor_Struct.LengthHigh2]
-    mov [es:di+18], ax
-    mov ax, [Range_Descriptor_Struct.Type]
-    mov [es:di+20], ax
-
-    mov ax, di
-    add ax, 24
-    mov di, ax 
-
-    mov [e820_cur_offset], di
-
-    mov di, 0
-    mov eax, [es:di]
-    add eax, 1
-    mov [es:di], eax
+    mov eax, [e820_cur_offset]
+    add eax, 24
+    mov [e820_cur_offset], eax
 
     popa
-    pop di
-    pop es
 
     cmp ebx, 0
     je get_upper_memory.upper_memory_done
@@ -156,15 +127,22 @@ get_upper_memory:
         call print
         jmp halt
 
-    .upper_memory_done:
+    .upper_memory_done:  
         mov si, upper_memory_done_msg
         call print
+
+        mov eax, [e820_cur_offset]
+        mov [0xEFE8], eax
+
         ret
 
 read_error:
     mov si, boot_err
     call print
     jmp halt
+
+create_vbe_list:
+    
 
 set_VBE_mode:
     ; Dear people reading my code, SeaBIOS only tells you a VBE mode is supported when the current framebuffer has enough space
@@ -401,7 +379,6 @@ print:
     mov ah, 0x0E
     int 0x10
     jmp print
-
 .done:
     ret
 
@@ -473,9 +450,9 @@ halt32:
     jmp halt32
 
 
-boot_msg_2_0: db "The River Phlegethon",0x0A,0x0D,0 ; Just found out that 0x0A is newline and 0x0D is carry
-boot_msg_2_1: db "Switching to protected mode...",0x0A,0x0D,0
-boot_err: db "Error reading kernel from HDD.",0x0A,0x0D,0
+boot_msg_2_0: db "BOOT_1",0x0A,0x0D,0 ; Just found out that 0x0A is newline and 0x0D is carry
+boot_msg_2_1: db "PROT_1",0x0A,0x0D,0
+boot_err: db "READ_ERR",0x0A,0x0D,0
 vbe_signature: db "VBE2"
 vbe_version: dw 0x0200
 vbe_error_msg: db "VBE not supported.",0x0A,0x0D,0
@@ -483,8 +460,8 @@ vbe_error_msgi: db "Couldn't get VBE Info.",0x0A,0x0D,0
 vbe_error_msgm: db "Couldn't get VBE Mode Info.",0x0A,0x0D,0
 filter_no_match_msg: db "VBE BIOS incompatible with 1024x768x24 mode",0x0A,0x0D,0
 vbe_success: db "Successfully set VBE mode",0x0A,0x0D,0
-e820_fail_msg: db "Failed to obtain memory map",0x0A,0x0D,0
-upper_memory_done_msg: db "Successfully obtained memory map",0x0A,0x0D,0
+e820_fail_msg: db "MEM_MAP_N",0x0A,0x0D,0
+upper_memory_done_msg: db "MEM_MAP_Y",0x0A,0x0D,0
 
 memory_type: resb 1
 upper_memory: resq 1
@@ -498,8 +475,7 @@ VbeFlags: resb 1
 cur_row: resb 2
 cur_col: resb 2
 
-highest_ram_address: resb 4
-e820_cur_offset: resb 2
+e820_cur_offset: resb 4
 
 vbe_present: resb 1
 
@@ -556,15 +532,6 @@ VBEModeInfoBlock:
     .OffscreenMemOffset: resd 1
     .OffscreenMemSize: resw 1
     .Reserved2: resb 206
-Range_Descriptor_Struct:
-    .BaseAddressLow1: resb 2
-    .BaseAddressLow2: resb 2
-    .BaseAddressHigh1: resb 2
-    .BaseAddressHigh2: resb 2
-    .LengthLow1: resb 2
-    .LengthLow2: resb 2
-    .LengthHigh1: resb 2
-    .LengthHigh2: resb 2
-    .Type: resb 4 ; 1 = usuable, other = unusable. Normally part of BIOS ROM. No clue why it has to be 4 bytes, just does.
+
 
 times 2048-($-$$) db 0

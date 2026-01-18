@@ -96,4 +96,4 @@ typedef struct IDTEntry_S IDTEntry;
 typedef struct IDTR_S IDTR;
 
 void LoadIDT();
-void SetIDTEntry(uint8_t entry_num, uint64_t handler_address, uint16_t selector, uint8_t flags);
+void SetIDTEntry(uint8_t entry_num, uint64_t handler_address, uint16_t selector, uint8_t flags, uint8_t ist);

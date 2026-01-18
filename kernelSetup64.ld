@@ -4,9 +4,9 @@ ENTRY(_start)
 
 SECTIONS
 {
-    . = 0x00100000;
+    . = 0x000040000;
     .text : { 
-        *kernel_entry.o(.text)
+        *kernel_setup_entry.o(.text)
         *(.text*) 
     }
     .rodata : { *(.rodata*) }

@@ -3,6 +3,8 @@
 #include <stdint.h>
 #include <stddef.h>
 
+#include "Memory.h"
+
 #define BLACK 0x0
 #define BLUE 0x1
 #define GREEN 0x2
@@ -22,11 +24,22 @@
 
 extern uint8_t VGA_CUR_COLOR;
 
+struct VGA_Queue_Character_S{
+    char Character;
+    uint8_t Color;
+    uint8_t X;
+    uint8_t Y;
+}__attribute__((packed));
+
+typedef struct VGA_Queue_Character_S VGA_Queue_Character;
+
 void SetTextColor(uint8_t foreground, uint8_t background);
-void WriteCharacter(char Character, int x, int y);
+void WriteCharacter(char Character, uint8_t x, uint8_t y);
 unsigned char ReadCharacter(int x, int y);
 void WriteString(const char* string, int x, int y);
 void DrawBox(int x, int y, int w, int h, char* title);
 void DrawDivider(int x, int y, int w, char* title);
 void ClearScreen();
+void VGA_Scroll(int n);
 size_t calculate_string_length(const char* str);
+void ClearLine(int y);

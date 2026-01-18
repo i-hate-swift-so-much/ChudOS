@@ -1,4 +1,5 @@
 #include "VGA.h"
+#include "stdbool.h"
 
 #define VGA_WIDTH 80
 #define VGA_HEIGHT 25
@@ -20,11 +21,10 @@ void SetTextColor(uint8_t foreground, uint8_t background){
     VGA_CUR_COLOR = (background << 4) | foreground;
 }
 
-void WriteCharacter(char Character, int x, int y){
+void WriteCharacter(char Character, uint8_t x, uint8_t y){
     size_t offset = (y * VGA_WIDTH + x) * 2;
-    char* ptr = (char*)(VGA_ADDRESS+offset);
-    ptr[0] = Character;
-    ptr[1] = VGA_CUR_COLOR;
+    vga_buffer[offset] = Character;
+    vga_buffer[offset+1] = VGA_CUR_COLOR;
 }
 
 void DrawBox(int x, int y, int w, int h, char* title){
@@ -145,8 +145,8 @@ void WriteString(const char* string, int x, int y){
 }
 
 void ClearScreen(){
-    for(int i = 0; i < VGA_WIDTH*VGA_HEIGHT; i++){
-        WriteCharacter(' ', i, 0);
+    for(int i = 0; i < VGA_HEIGHT; i++){
+        ClearLine(i);
     }
 }
 
@@ -159,3 +159,18 @@ unsigned char ReadCharacter(int x, int y){
     unsigned char* ptr = (unsigned char*)(VGA_ADDRESS+offset);
     return ptr[0];
 };
+
+void ClearLine(int y){
+    for(int i = 0; i < 80; i++){
+        WriteCharacter(' ', i, y);
+    }
+}
+
+void VGA_Scroll(int n){
+    //memcpy(vga_buffer, vga_buffer+160, 160);
+    if(n <= 0){ return; }
+    
+    for(int i = 0; i < 80; i++){
+        memcpy(vga_buffer+(i*160), vga_buffer+(i*160)+(n*160), 160);
+    }
+}

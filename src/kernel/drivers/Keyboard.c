@@ -41,46 +41,6 @@ void HandleKeyboardInterrupt(interrupt_frame* frame){
         return;
     }
 
-    // CTRL+ALT+ESC
-    if(scancode == 0x01 && ctrl && alt){
-        //trigger kernel panic
-        __asm__ __volatile__(
-            "int $0xFA;" // undefined
-        );
-        pic_send_eoi(0x01);
-        return;
-    }
-
-    // CTRL+ALT+TAB
-    if(scancode == 0x0F && ctrl && alt){
-        // trigger page fault
-        uintptr_t addr = 0x000F000000;
-        uint64_t* fault = (uint64_t*)addr; // unmapped virtual address
-        *fault = 0;
-        pic_send_eoi(0x01);
-        return;
-    }
-
-    // CTRL+ALT+LSHIFT
-    if(scancode == 0x2A && ctrl && alt){
-        // trigger invalid opcode exception
-        asm volatile("ud2"); // GAS representation of an invalid opcode
-        pic_send_eoi(0x01);
-        return;
-    }
-
-     // CTRL+ALT+BACKSPACE
-    if(scancode == 0x0E && ctrl && alt){
-        // trigger general protection fault
-        // done by attempting to access a non-canonical address
-        // since the CPU still sends memory accesses through the GDT,
-        // and the GDT checks for canonical addresses, a non-canonical
-        // address will raise an exception
-        uint64_t* fault = (uint64_t*)0xF0000000000ULL;
-        pic_send_eoi(0x01);
-        return;
-    }
-
     char ch = 0;
     if(scancode == 0x2A || scancode == 0x36){
         upper = true;
@@ -99,6 +59,9 @@ void HandleKeyboardInterrupt(interrupt_frame* frame){
     }else if(scancode < 59 && scancode != 0x01){
         ch = scancode_map[scancode];
         is_character = true;
+    }else if(scancode == 0x1C){
+        NewLine();
+        return;
     }
 
     if(ch && is_character){

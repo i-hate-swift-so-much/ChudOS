@@ -9,3 +9,5 @@ void int_to_char_array_binary(int n, char* buffer, size_t buffer_size, int paddi
 void pad_string(int padding, char* buffer, int buffer_size, char filler, int start);
 void printf_centered(const char* toPrint, int length);
 void setCursor(int x, int y);
+void Scroll(int n);
+void NewLine();
