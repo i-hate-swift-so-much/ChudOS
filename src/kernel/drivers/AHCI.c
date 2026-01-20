@@ -2,12 +2,13 @@
 
 AHCI_MMIO* AHCI_Main_MMIO;
 
-bool AHCI_Ownership;
+bool AHCI_Ownership = false;
+bool AHCI_Reset = false;
 
 /*
     Performs the OS/BIOS handoff
 
-    note: insanely slow, should probably find some way to avoid `while(BIOS_BUSY){}`
+    note: inefficient , should probably find some way to avoid `while(BIOS_BUSY){}`
 */
 void AHCI_BIOS_Handoff(){
     uint8_t* BUSY = (uint8_t*)(AHCI_Main_MMIO->Handoff_Status);
@@ -15,6 +16,28 @@ void AHCI_BIOS_Handoff(){
     AHCI_Main_MMIO->Handoff_Status |= start_handoff;
     while(*BUSY & 0b11 != 0b10){}
     AHCI_Ownership = *BUSY >> 1;
+}
+
+/*
+    Performs an HBA reset as defined in AHCI Specification 10.4.3
+
+    Suffers from the same issue as AHCI_BIOS_Handoff
+    note: if hardware does not reset GHC.HR to 0 after 1 second, then controller is hung or non-functional.
+*/
+uint8_t HBA_Reset_Count = 0;
+void AHCI_HBA_Reset(){
+    uint32_t* GHC = AHCI_Main_MMIO->Global_Host_Control;
+
+    *GHC |= 1; // set bit GHC.HR, tell AHCI to initialize a HardwareReset
+    uint64_t start_window = TimerWindow;
+    // wait until bit is cleared or time is past 1 second
+    while(*GHC & 1 && (start_window-TimerWindow)/Frequency < 1){
+
+    }
+    if((start_window-TimerWindow)/Frequency > 1) { 
+        return;
+    }
+    AHCI_Reset = true;
 }
 
 /*
@@ -47,5 +70,13 @@ void AHCI_Init(PCI_Device* device){
         SetTextColor(WHITE, BLACK);
     }    
 
+    //HBA reset (AHCI 10.4.3)
+    //just set GHC.HR to 1,
+    //when GHC.HR is cleared, 
+    //it's been reset properly
+    AHCI_HBA_Reset();    
+
     AHCI_Main_MMIO->Global_Host_Control |= (1 << 31); // this sets the AHCI enable
+
+    
 }

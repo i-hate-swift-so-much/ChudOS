@@ -141,16 +141,18 @@ read_error:
     call print
     jmp halt
 
-create_vbe_list:
-    
 
-set_VBE_mode:
+
+
+make_vbe_array:
     ; Dear people reading my code, SeaBIOS only tells you a VBE mode is supported when the current framebuffer has enough space
     ; for that mode. Normally, SeaBIOS allocates 2 MB of memory for the VGA card (hasn't been industry standard since 1995).
     ; Due to this, you MUST allocate a minimum of 3 MB of memory to the VGA card when using QEMU through `-device VGA,vgamem_mb=3`
 
 
     ; tell VBE to use VBE 2.0
+
+    mov [vbe_cur_offset], 0
 
     mov ax, [vbe_signature] ; 'VBE2'
     mov [VBEInfoBlock.VbeSignature], ax
@@ -165,111 +167,24 @@ set_VBE_mode:
     cmp ax, 0x004F
     jne vbe_errori
 
-    mov ax, [VBEInfoBlock.VideoModePtr]  ; i just found out i can use eax in real mode
+    mov ax, [VBEInfoBlock.VideoModePtr]
     mov bx, [VBEInfoBlock.VideoModePtr+2]
     ; bx = segment
     ; ax = offset
     mov es, bx
     mov si, ax
 
-    call filter_vbe_modes
-
-    push bx ; for preservation
-
-    ; mask bit 14 of bx.
-    ; bit 14 = use linear framebuffer
-    mov ax, 0x4000 ; big number
-    or bx, ax ; apply mask
-
-    mov ax, 0x4F02 ; set VBE mode
-    int 0x10
-    cmp ax, 0x004F
-    jne vbe_error
-    mov [vbe_present], 1
-
     pop bx
     mov ax, bx ; for some reason i coded this as the argument
+    mov bx, [vbe_cur_offset]
     call get_vbe_mode
+
+    mov bx, [vbe_cur_offset]
+    add bx, 
 
     ;jmp halt
 
     ret
-; target for filter is 1024x768x24bpp in graphical mode
-filter_vbe_modes:
-    mov bx, [es:si] ; set BX to the current mode
-    cmp word bx, 0xFFFF ; 0xFFFF is the terminating word for the mode list
-    je filter_no_match ; if we should terminate... then terminate. duh.
-    ; VbeFlags is 1 byte in which each of the 4 least significant bits is a flag for deciding if the video mode is valid
-    ; if the target is met, the bit is 1 and the flag is therefore set
-    ; bit 0: bpp (target is 24)
-    ; bit 1: resolution x (target is 1024)
-    ; bit 2: resoltuion y (target is 768)
-    ; bit 3: graphics mode (target is display, equivalent to bit)
-    ; if [VbeFlags] is 0b00001110 then the mode is used.
-    mov byte [VbeFlags], 0 ; set VbeFlags to 0
-
-    mov ax, bx
-    call get_vbe_mode ; loads info about the current mode into VBEModeInfoBlock
-    add si, 2
-
-    ; 32 bpp isn't a real thing, this is just because some VBE implementations
-    ; that say 32 because of padding, in reality, 32bpp (AARRGGBB) isn't real
-    ; because video memory is too basic, why would it calculate alpha?
-    ; In summary, BIOSes and VBEs are very weird.
-    cmp byte [VBEModeInfoBlock.BitsPerPixel], 32
-    je bit_depth_y_0
-    bit_depth_y_c_0:
-
-    ; Check again, just in case.
-    cmp byte [VBEModeInfoBlock.BitsPerPixel], 24
-    je bit_depth_y_1
-    bit_depth_y_c_1:
-
-    cmp word [VBEModeInfoBlock.XResolution], 1024 ; offset 18 is resolution x
-    je res_x_y ; if the resolution is 1024, set flag bit 1
-    res_x_c: ; used by .res_x_y in place of ret
-
-    cmp word [VBEModeInfoBlock.YResolution], 768 ; offest 20 is resolution y
-    je res_y_y ; if the resolution is 768, set flag bit 2
-    res_y_c:
-
-    ; If bit 4 of VBEModeInfoBlock is enabled, then the mode is graphical.
-    ; If bit 7 of VBEModeInfoBlock is enabled, then a linear framebuffer is available.
-    mov cx, [VBEModeInfoBlock.ModeAttributes]
-    and cx, 0x90 ; mask
-    cmp cx, 0x90 
-    je graphics_y ; if it's graphics and linear framebuffer set flag bit 3
-    graphics_y_c:
-
-    mov ax, [VbeFlags]
-    ;and word ax, 0b0001
-    mov [VbeFlags], ax
-    cmp byte [VbeFlags], 0b1111 ; check flags
-    je filter_done ; ensure BX is preserved
-
-    call increment_filter_counter
-    jmp filter_vbe_modes ; if flags arent correct, loop
-
-filter_done:
-    push bx
-    mov si, vbe_success
-    call print
-    ; the below code block was used for inspecting the values with info registers on the QEMU monitor
-    ; mov ax, [VBEModeInfoBlock.XResolution]
-    ; mov bx, [VBEModeInfoBlock.YResolution]
-    ; mov cx, [VBEModeInfoBlock.BitsPerPixel]
-    ; mov dx, [VBEModeInfoBlock.PhysBasePtr]
-    ; jmp halt
-    pop bx
-    ret
-
-filter_no_match:
-    mov ax, 0xE000
-    mov si, filter_no_match_msg
-    call print
-    mov dx, [VbeFlags]
-    mov cx, [filter_run_count]
-    jmp halt
 flag_all_debug:
     mov ax, [VbeFlags]
     or ax, 0b1111
@@ -308,7 +223,7 @@ get_vbe_mode:
     mov cx, ax ; set cx to the cur mode
     mov ax, cs
     mov es, ax
-    mov di, VBEModeInfoBlock
+    mov di, bx
     mov ax, 0x4F01
     int 0x10
     pop di
@@ -476,6 +391,8 @@ cur_row: resb 2
 cur_col: resb 2
 
 e820_cur_offset: resb 4
+
+vbe_cur_offset: resb 4
 
 vbe_present: resb 1
 

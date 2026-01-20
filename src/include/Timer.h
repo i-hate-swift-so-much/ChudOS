@@ -16,6 +16,7 @@ typedef struct{
 
 extern uint64_t SecondsSinceBoot;
 extern uint64_t TimerWindow;
+extern uint64_t Frequency;
 
 void timer_interrupt_stub();
 void sync_time_stub();

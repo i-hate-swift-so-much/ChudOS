@@ -2,6 +2,7 @@
 
 #include "PCI.h"
 #include "IO.h"
+#include "Timer.h"
 
 // real coding for this driver started
 // dec 29, 2025.
