@@ -179,42 +179,10 @@ make_vbe_array:
     mov bx, [vbe_cur_offset]
     call get_vbe_mode
 
-    mov bx, [vbe_cur_offset]
-    add bx, 
 
     ;jmp halt
 
     ret
-flag_all_debug:
-    mov ax, [VbeFlags]
-    or ax, 0b1111
-    mov [VbeFlags], ax
-    ret
-bit_depth_y_0:
-    mov ax, [VbeFlags]
-    or ax, 0b0001
-    mov [VbeFlags], ax ; sets the least significant bit of the flags to 1
-    jmp bit_depth_y_c_0
-bit_depth_y_1:
-    mov ax, [VbeFlags]
-    or ax, 0b0001
-    mov [VbeFlags], ax ; sets the least significant bit of the flags to 1
-    jmp bit_depth_y_c_1
-res_x_y:
-    mov ax, [VbeFlags]
-    or ax, 0b0010
-    mov [VbeFlags], ax
-    jmp res_x_c
-res_y_y:
-    mov ax, [VbeFlags]
-    or ax, 0b0100
-    mov [VbeFlags], ax
-    jmp res_y_c
-graphics_y:
-    mov ax, [VbeFlags]
-    or ax, 0b1000
-    mov [VbeFlags], ax
-    jmp graphics_y_c
 
 get_vbe_mode:
     push si

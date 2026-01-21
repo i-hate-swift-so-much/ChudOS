@@ -11,11 +11,10 @@ bool AHCI_Reset = false;
     note: inefficient , should probably find some way to avoid `while(BIOS_BUSY){}`
 */
 void AHCI_BIOS_Handoff(){
-    uint8_t* BUSY = (uint8_t*)(AHCI_Main_MMIO->Handoff_Status);
-    uint32_t start_handoff = 0b110; // request a transfer. SMI bit must be set
-    AHCI_Main_MMIO->Handoff_Status |= start_handoff;
-    while(*BUSY & 0b11 != 0b10){}
-    AHCI_Ownership = *BUSY >> 1;
+    AHCI_Main_MMIO->Handoff_Status |= 0b100; // set SMI
+    AHCI_Main_MMIO->Handoff_Status |= 0b10; // set OOS
+    while(AHCI_Main_MMIO->Handoff_Status & 1 || AHCI_Main_MMIO->Handoff_Status & 0b10000){}
+    AHCI_Ownership = ~(AHCI_Main_MMIO->Handoff_Status) & 1;
 }
 
 /*
@@ -26,7 +25,7 @@ void AHCI_BIOS_Handoff(){
 */
 uint8_t HBA_Reset_Count = 0;
 void AHCI_HBA_Reset(){
-    uint32_t* GHC = AHCI_Main_MMIO->Global_Host_Control;
+    uint32_t* GHC = &AHCI_Main_MMIO->Global_Host_Control;
 
     *GHC |= 1; // set bit GHC.HR, tell AHCI to initialize a HardwareReset
     uint64_t start_window = TimerWindow;
@@ -45,7 +44,7 @@ void AHCI_HBA_Reset(){
     Checklist:
         1. Enable interrupts, DMA, and memory space in Command Register
         2. Map BAR 5 to memory
-        3. Perform BIOS/OS handoff
+        3. Perform BIOS/OS handoff if needd
 */
 void AHCI_Init(PCI_Device* device){
     //return;
@@ -60,14 +59,30 @@ void AHCI_Init(PCI_Device* device){
 
     AHCI_Main_MMIO = (AHCI_MMIO*)malloc_specific(&KernelTask, device->Header0.BAR5, &flags);
 
-    //mem_bitmap_dump(16);
-    if(AHCI_Main_MMIO != NULL)
-    { AHCI_BIOS_Handoff(); }
-    else
+    // if we should perform a handoff, then do that
+    if(AHCI_Main_MMIO->Extended_Host_Capabilities & 1 == 0)
+    { 
+        AHCI_BIOS_Handoff(); 
+        if(AHCI_Ownership == false){
+            SetTextColor(LRED, BLACK);
+            printf("FAIL: Couldn't Obtain Ownership \n", 0);
+            SetTextColor(WHITE, BLACK);
+
+            char test_char[22];
+            int_to_char_array_binary(AHCI_Main_MMIO->Handoff_Status, test_char, sizeof(test_char), 0);
+            printf(test_char, 0);
+            printf("\n", 0);
+
+            return;
+        }
+    }
+    if(AHCI_Main_MMIO == NULL)
     { 
         SetTextColor(LRED, BLACK);
         printf("FAIL: AHCI_Main_MMIO is null. \n", 0);
         SetTextColor(WHITE, BLACK);
+
+        return;
     }    
 
     //HBA reset (AHCI 10.4.3)
@@ -76,7 +91,7 @@ void AHCI_Init(PCI_Device* device){
     //it's been reset properly
     AHCI_HBA_Reset();    
 
-    AHCI_Main_MMIO->Global_Host_Control |= (1 << 31); // this sets the AHCI enable
-
-    
+    //AHCI_Main_MMIO->Global_Host_Control |= (1 << 31); // this sets the AHCI enable
+    SetTextColor(LGREEN, BLACK);
+    printf("SUCCESS ", 0);
 }

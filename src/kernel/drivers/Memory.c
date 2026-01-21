@@ -493,6 +493,17 @@ void Enumerate_E820(){
         E820_Dump_Descriptor(cur_descriptor);
         if(cur_descriptor->Type == 1){
             available_mem+=cur_descriptor->Length;
+        }else{
+            // loop through all the pages covered by the limit,
+            // since they are reserved we just set them to used
+            // but keep them unmapped.
+            uint64_t cur_base = cur_descriptor->Base_Address;
+            for(int i = 0; i < cur_descriptor->Length; i+=4096){
+                PageEntries entries = ExtractPageEntries(cur_base);
+                mem_SetBit(entries.PDPT_Entry, entries.PD_Entry, entries.PT_Entry);
+                cur_base+=4096;
+            }
+            
         }
         total_mem+=cur_descriptor->Length;
 

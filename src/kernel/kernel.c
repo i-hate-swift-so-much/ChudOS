@@ -88,34 +88,13 @@ void kernel_startup(){
     SetTextColor(WHITE, BLACK);
 
     PrintCycles();
-    printf(" Detecting drive ", 0);
 
     if(AHCI_Controller == NULL){ 
         SetTextColor(LRED, BLACK);
-        printf("FAIL\n", 0); 
+        printf(" No drive detected\n", 0); 
     }else{
-        SetTextColor(LGREEN, BLACK);
-        printf("SUCCESS ", 0);
-        SetTextColor(WHITE, BLACK);
-        char Vendor_ID[22];
-        char Device_ID[22];
-        int_to_char_array_hex(AHCI_Controller->Header.VendorID, Vendor_ID, sizeof(Vendor_ID), 0);
-        int_to_char_array_hex(AHCI_Controller->Header.DeviceID, Device_ID, sizeof(Device_ID), 0);
-        printf("ID: ", 0);
-        printf(Vendor_ID, 0);
-        printf(":", 0);
-        printf(Device_ID, 0);
-        printf("\n", 0);
-        PrintCycles();
         printf(" Initializing Drive ", 0);
         AHCI_Init(AHCI_Controller);
-        if(AHCI_Ownership){ 
-            SetTextColor(LGREEN, BLACK);
-            printf("SUCCESS ", 0);
-        }else{
-            SetTextColor(LRED, BLACK);
-            printf("FAIL ", 0);
-        }
     }
     SetTextColor(WHITE, BLACK);
 

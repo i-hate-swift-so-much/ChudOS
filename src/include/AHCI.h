@@ -104,30 +104,59 @@ struct AHCI_MMIO_S{
     AHCI_PORT Ports[1]; // min 1 max 32
 } __attribute__((packed));
 
-struct AHCI_COMMAND_S{
+// AHCI 4.2.2
+struct AHCI_COMMAND_HEADER_S{
     // DWORD 0
-    uint8_t CFL:5;
-    uint8_t A:1;
-    uint8_t W:1;    // 1 = write, 0 = read
-    uint8_t P:1;
+    uint8_t CFL:5; // length of command fis measured in 32 bits
+    uint8_t A:1; // ATAPI
+    uint8_t W:1; // 1 = write, 0 = read
+    uint8_t P:1; // Prefetchable
 
-    uint8_t R:1;
-    uint8_t B:1;
-    uint8_t C:1;
+    uint8_t R:1; // Reset
+    uint8_t B:1; // BIST
+    uint8_t C:1; // when an R_OK is sent and this bit is set, the port will automatically clear its busy bit
     uint8_t Res1:1;
 
+    uint8_t PMP:4; // 0
+    uint16_t PRDTL; // length of the PRDT in entries
+
     // DWORD 1
+    volatile
     uint32_t PRD_Byte_Count;
 
-    // DWORD 2
-    uint8_t Res2:7;
-    uint32_t CTBA0:25;
-    
-    // DWORD 3
+    // DWORD 2, 3
+    uint32_t CTBA0;
     uint32_t CTBA_U0;
+
+    // DWORD 4
+    uint32_t reserved[4];
+}__attribute__((packed));
+
+struct AHCI_Physical_Region_Descriptor_S{
+    uint32_t DBA_L;
+    uint32_t DBA_U;
+    uint32_t reserved1;
+    
+    uint32_t Byte_Count:22;		// 4M max
+	uint32_t reserved2:9;		// Reserved
+	uint32_t i:1;		// Interrupt on completion
+}__attribute__((packed));
+
+typedef struct AHCI_Physical_Region_Descriptor_S AHCI_Physical_Region_Descriptor;
+
+struct AHCI_CMD_Table_S{
+    uint8_t cfis[64];
+
+    uint8_t acmd[16];
+
+    uint8_t reserved[48];
+
+    AHCI_Physical_Region_Descriptor prdt_entry[32];
 }__attribute__((packed));
 
 typedef struct AHCI_MMIO_S AHCI_MMIO;
+typedef struct AHCI_COMMAND_HEADER_S AHCI_COMMAND_HEADER;
+typedef struct AHCI_CMD_Table_S AHCI_CMD_Table;
 
 extern bool AHCI_Ownership;
 
