@@ -141,6 +141,10 @@ PCI_Header_0x1 PCI_ReadHeader1(PCI_Common_Header common, uint8_t bus, uint8_t sl
 }
 
 void ScanBusses(){
+    #ifdef DEBUG
+        printf("\n", 0);
+    #endif
+
     uint8_t ClassCode;
     uint8_t SubClass;
     uint8_t HeaderType;
@@ -183,6 +187,16 @@ void ScanBusses(){
 
             Devices[deviceRun] = Cur_Device;
 
+            #ifdef DEBUG
+                char test_char[22];
+                int_to_char_array_hex(curHeader.ClassCode, test_char, sizeof(test_char), 4);
+                printf_debug(test_char, 0);
+                printf(":", 0);
+                int_to_char_array_hex(curHeader.SubClass, test_char, sizeof(test_char), 4);
+                printf_debug(test_char, 0);
+                printf("\n", 0);
+            #endif
+
             if(curHeader.ClassCode == 0x01 && curHeader.SubClass == 0x06 && curHeader.ProgIF == 0x01){
                 // this class data indicates that the devices is a SATA device using the AHCI controller.
                 AHCI_Controller = &Devices[deviceRun];
@@ -191,7 +205,15 @@ void ScanBusses(){
         }
     }
     device_count = deviceRun;
-}
+
+    #ifdef DEBUG
+        char test_char[22];
+        printf_debug("Detected ", 0);
+        int_to_char_array(device_count, test_char, sizeof(test_char), 0);
+        printf_debug(test_char, 0);
+        printf_debug(" devices.\n", 0);
+    #endif
+} 
 
 void pci_writeb(uint32_t address, uint8_t data){
     outl(PCI_CONFIG_ADDRESS, address);

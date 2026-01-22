@@ -47,17 +47,8 @@ void TimerInterrupt(InterruptRegisters* frame){
     TimerWindow++;
     if(!enabled){ pic_send_eoi(0x00); return; }
     
-    char ticks_str[22];
     TimerWindow %= 1000;
     if(TimerWindow == 999){SecondsSinceBoot++;}
-
-    int_to_char_array(
-        SecondsSinceBoot,
-        ticks_str, 
-        sizeof(ticks_str),
-        16
-    );
-    WriteString(ticks_str, 80-calculate_string_length(ticks_str), 24);
     
     pic_send_eoi(0x00);
 }

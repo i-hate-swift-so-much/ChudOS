@@ -6,6 +6,7 @@
 .global timer_interrupt_stub
 .global sync_time_stub
 .global keyboard_stub
+.global ahci_interrupt_stub
 .extern handle_syscall
 .extern KernelPanic
 .extern HandlePageFault
@@ -14,6 +15,7 @@
 .extern InvalidOpcode
 .extern SyncTime
 .extern HandleKeyboardInterrupt
+.extern HandleAHCIInterrupt
 
 .macro push_regs
         pushq %rax
@@ -262,6 +264,29 @@ keyboard_stub:
         
         movq %rsp, %rdi
         call HandleKeyboardInterrupt
+
+        add $16, %rsp
+
+        pop_regs
+
+        check_cpl_ret
+
+        iretq
+
+ahci_interrupt_stub:
+        cld
+
+        check_cpl
+
+        push_regs
+
+        movq %cr2, %rax
+        pushq %rax
+
+        pushq $0x00
+        
+        movq %rsp, %rdi
+        call HandleAHCIInterrupt
 
         add $16, %rsp
 

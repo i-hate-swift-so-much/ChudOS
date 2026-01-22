@@ -444,36 +444,39 @@ void PrintMemorySize(size_t bytes){
 
     if(gib){
         int_to_char_array(gib, print, sizeof(print), 0);
-        printf(print, 0);
-        printf(" GiB(s)", 0);
+        printf_debug(print, 0);
+        printf_debug(" GiB(s)", 0);
     }else if(mib){
         int_to_char_array(mib, print, sizeof(print), 0);
-        printf(print, 0);
-        printf(" MiB(s)", 0);
+        printf_debug(print, 0);
+        printf_debug(" MiB(s)", 0);
     }else if(kib){
         int_to_char_array(kib, print, sizeof(print), 0);
-        printf(print, 0);
-        printf(" KiB(s)", 0);
+        printf_debug(print, 0);
+        printf_debug(" KiB(s)", 0);
     }else{
         int_to_char_array(bytes, print, sizeof(print), 0);
-        printf(print, 0);
-        printf(" Byte(s)", 0);
+        printf_debug(print, 0);
+        printf_debug(" Byte(s)", 0);
     }
 }
 
 void E820_Dump_Descriptor(E820_Range_Descriptor* descriptor){
     char test_char[36];
     int_to_char_array_hex(abs(descriptor->Base_Address), test_char, sizeof(test_char), 10);
-    printf(test_char, 0);
-    printf("/", 0);
+    printf_debug(test_char, 0);
+    printf_debug("->", 0);
     int_to_char_array_hex(abs(descriptor->Length), test_char, sizeof(test_char), 10);
-    printf(test_char, 0);
-    printf("/ ", 0);
+    printf_debug(test_char, 0);
+    printf_debug(" (", 0);
+    int_to_char_array(abs(descriptor->Type), test_char, sizeof(test_char), 0);
+    printf_debug(test_char, 0);
+    printf_debug(")   ", 0);
     PrintMemorySize(descriptor->Length);
     if(descriptor->Type == 1){
-        printf(" of available memory\n", 0);
+        printf_debug(" of available memory\n", 0);
     }else{
-        printf(" of unavailable memory\n", 0);
+        printf_debug(" of unavailable memory\n", 0);
     }
 }
 
@@ -484,13 +487,19 @@ void Enumerate_E820(){
     uintptr_t loop_count_ptr = (uintptr_t)(E820_BUFFER_ADDRESS-24);
     uint32_t loop_count = (*(uint32_t*)loop_count_ptr) / 24;
 
-    char test_char[36];
-    int_to_char_array(loop_count, test_char, sizeof(test_char), 0);
-    printf(test_char, 0);
-    printf(" memory regions detected\n", 0);
+    #ifdef DEBUG
+        char test_char[36];
+        int_to_char_array(loop_count, test_char, sizeof(test_char), 0);
+        printf("\n", 0);
+        printf(test_char, 0);
+        printf(" memory regions detected\n", 0);
+        printf_debug("BASE          LIMIT        TYPE  SIZE\n",0);
+    #endif
 
     for(int i = 0; i < loop_count-1; i++){
-        E820_Dump_Descriptor(cur_descriptor);
+        #ifdef DEBUG
+            E820_Dump_Descriptor(cur_descriptor);
+        #endif
         if(cur_descriptor->Type == 1){
             available_mem+=cur_descriptor->Length;
         }else{
@@ -509,12 +518,14 @@ void Enumerate_E820(){
 
         cur_descriptor++;
     }
-    SetTextColor(LCYAN, BLACK);
-    printf("Available memory: ", 0);
-    PrintMemorySize(available_mem);
-    printf("\nUnavailable memory: ", 0);
-    PrintMemorySize(total_mem-available_mem);
-    printf("\nTotal Memory: ", 0);
-    PrintMemorySize(total_mem);
-    printf("\n", 0);
+    #ifdef DEBUG
+        SetTextColor(LCYAN, BLACK);
+        printf_debug("Available memory: ", 0);
+        PrintMemorySize(available_mem);
+        printf_debug("\nUnavailable memory: ", 0);
+        PrintMemorySize(total_mem-available_mem);
+        printf_debug("\nTotal Memory: ", 0);
+        PrintMemorySize(total_mem);
+        printf("\n", 0);
+    #endif
 }

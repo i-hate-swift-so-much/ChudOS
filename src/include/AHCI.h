@@ -3,6 +3,7 @@
 #include "PCI.h"
 #include "IO.h"
 #include "Timer.h"
+#include "IDT.h"
 
 // real coding for this driver started
 // dec 29, 2025.
@@ -17,7 +18,7 @@
 // AHCI uses a packet system kind of like ethernet
 // called FIS (Frame Information Structure) which is
 
-// types of FIS packets
+// types of FIS packets, defined by their sizes
 #define FIS_TYPE_REG_H2D 0x27 // register host to device, used for transferring the shadow registers to the device. this is how ATA commands are issued
 #define FIS_TYPE_REG_D2H 0x34 // register device to host, used for responding to H2D's
 #define FIS_TYPE_DMA_ACT 0x36 // DMA activate, device to host
@@ -160,4 +161,5 @@ typedef struct AHCI_CMD_Table_S AHCI_CMD_Table;
 
 extern bool AHCI_Ownership;
 
+extern void ahci_interrupt_stub();
 void AHCI_Init(PCI_Device* device);

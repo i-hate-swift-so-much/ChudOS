@@ -1,20 +1,14 @@
 #include "Keyboard.h"
 
-#include "PIC.h"
-#include "IO.h"
-#include "VGA.h"
-
-#include "std.h"
-#include "KernelPanic.h"
-#include "IDT.h"
-#include "stdint.h"
-
 #define KBD_PORT 0x60
 
 bool capslock = false;
 bool upper = false;
 bool ctrl = false;
 bool alt = false;
+
+bool should_proceed = false;
+bool should_not_proceed = false;
 
 uint8_t lastScancode = 0x00;
 
@@ -33,49 +27,15 @@ uintptr_t canonicalize_arithmetic(uintptr_t addr) {
 void HandleKeyboardInterrupt(interrupt_frame* frame){
     uint8_t scancode = inb(KBD_PORT);
 
-    bool is_character = false;
-
-    if (scancode == 0xE0){
-        lastScancode = scancode;
-        pic_send_eoi(0x01);
+    if(scancode == 0x1C || scancode == 0x9C){
+        should_proceed = true;
+        should_not_proceed = false;
+        return;
+    }else{
+        should_not_proceed = true;
+        should_proceed = false;
         return;
     }
-
-    char ch = 0;
-    if(scancode == 0x2A || scancode == 0x36){
-        upper = true;
-    }else if(scancode == 0x3A){
-        capslock = !capslock;
-    }else if(scancode == 0xAA || scancode == 0xB6){
-        upper = false;
-    }else if(scancode == 0x1D || (scancode == 0x1D && lastScancode == 0xE0)){
-        ctrl = true;
-    }else if(scancode == 0x9D || (scancode == 0x9D && lastScancode == 0xE0)) {
-        ctrl = false;
-    }else if(scancode == 0x38){
-        alt = true;
-    }else if(scancode == 0xB8){
-        alt = false;
-    }else if(scancode < 59 && scancode != 0x01){
-        ch = scancode_map[scancode];
-        is_character = true;
-    }else if(scancode == 0x1C){
-        NewLine();
-        return;
-    }
-
-    if(ch && is_character){
-        if(capslock || upper && ch >= 97 && ch <=122){
-            ch-=32;
-        }
-        if(upper && scancode_upper[scancode] != 0){
-            ch = scancode_upper[scancode];
-        }
-        char str[2] = { ch, 0};
-        printf(str, 0);
-    }
-
-    lastScancode = scancode;    
 
     pic_send_eoi(0x01);
 }

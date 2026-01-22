@@ -1,9 +1,12 @@
 #include "AHCI.h"
+#include "Keyboard.h"
 
 AHCI_MMIO* AHCI_Main_MMIO;
 
 bool AHCI_Ownership = false;
 bool AHCI_Reset = false;
+
+int AHCI_IRQ_LINE;
 
 /*
     Performs the OS/BIOS handoff
@@ -23,7 +26,6 @@ void AHCI_BIOS_Handoff(){
     Suffers from the same issue as AHCI_BIOS_Handoff
     note: if hardware does not reset GHC.HR to 0 after 1 second, then controller is hung or non-functional.
 */
-uint8_t HBA_Reset_Count = 0;
 void AHCI_HBA_Reset(){
     uint32_t* GHC = &AHCI_Main_MMIO->Global_Host_Control;
 
@@ -34,6 +36,20 @@ void AHCI_HBA_Reset(){
 
     }
     if((start_window-TimerWindow)/Frequency > 1) { 
+        printf_error_snapshot("FAIL: Couldn't reset HBA\n", 0);
+
+        printf_variable("Press ENTER to retry, or any other key to quit boot.\n");
+        should_not_proceed = false;
+        should_proceed = false;
+        // poll until the user decides
+        while(should_not_proceed == false && should_proceed == false){}
+        if(should_not_proceed){
+            printf_variable("QUIT\n");
+        }else{
+            AHCI_HBA_Reset();
+            return;
+        }
+
         return;
     }
     AHCI_Reset = true;
@@ -47,7 +63,8 @@ void AHCI_HBA_Reset(){
         3. Perform BIOS/OS handoff if needd
 */
 void AHCI_Init(PCI_Device* device){
-    //return;
+    AHCI_IRQ_LINE = device->Header0.InterruptLine;
+    
     PCI_Command_Register init_cmd;
     init_cmd.Memory_Space = true;
     init_cmd.Interrupt_Disable = false;
@@ -58,29 +75,34 @@ void AHCI_Init(PCI_Device* device){
     flags.Execute_Disable = false;
 
     AHCI_Main_MMIO = (AHCI_MMIO*)malloc_specific(&KernelTask, device->Header0.BAR5, &flags);
+    #ifdef DEBUG
+        printf_debug("\nSuccessfully setup HBA MMIO\n", 0);
+    #endif
 
     // if we should perform a handoff, then do that
     if(AHCI_Main_MMIO->Extended_Host_Capabilities & 1 == 0)
     { 
         AHCI_BIOS_Handoff(); 
         if(AHCI_Ownership == false){
-            SetTextColor(LRED, BLACK);
-            printf("FAIL: Couldn't Obtain Ownership \n", 0);
-            SetTextColor(WHITE, BLACK);
+            printf_error_snapshot("FAIL: Couldn't Obtain Ownership \n", 0);
 
+            #ifdef DEBUG
             char test_char[22];
             int_to_char_array_binary(AHCI_Main_MMIO->Handoff_Status, test_char, sizeof(test_char), 0);
-            printf(test_char, 0);
+            printf_debug(test_char, 0);
             printf("\n", 0);
+            #endif
 
             return;
         }
+    }else{
+        #ifdef DEBUG
+            printf_debug("No need for ownership detected.\n", 0);
+        #endif
     }
     if(AHCI_Main_MMIO == NULL)
     { 
-        SetTextColor(LRED, BLACK);
-        printf("FAIL: AHCI_Main_MMIO is null. \n", 0);
-        SetTextColor(WHITE, BLACK);
+        printf_error_snapshot("FAIL: AHCI_Main_MMIO is null. \n", 0);
 
         return;
     }    
@@ -89,9 +111,29 @@ void AHCI_Init(PCI_Device* device){
     //just set GHC.HR to 1,
     //when GHC.HR is cleared, 
     //it's been reset properly
-    AHCI_HBA_Reset();    
+    AHCI_HBA_Reset();
 
-    //AHCI_Main_MMIO->Global_Host_Control |= (1 << 31); // this sets the AHCI enable
-    SetTextColor(LGREEN, BLACK);
-    printf("SUCCESS ", 0);
+    #ifdef DEBUG
+        printf_debug("Succesfully reset HBA\n", 0);
+    #endif
+
+    SetIDTEntry(AHCI_IRQ_LINE+0x20, (uint64_t)ahci_interrupt_stub, 0x08, 0x8E, 0x00);
+    pic_unmask(AHCI_IRQ_LINE);
+
+    #ifdef DEBUG
+        printf_debug("Succesfully registered AHCI IDT entry\n", 0);
+    #endif
+
+    AHCI_Main_MMIO->Global_Host_Control |= (1 << 31); // this sets the AHCI enable
+
+    #ifdef DEBUG
+        printf_debug("Succesfully enabled AHCI mode\n", 0);
+    #endif
+
+    printf_success_snapshot("SUCCESS ", 0);
+}
+
+void HandleAHCIInterrupt(InterruptRegisters* registers){
+    printf_variable("AHCI\n", 0);
+    pic_send_eoi(AHCI_IRQ_LINE);
 }

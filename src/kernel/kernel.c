@@ -14,34 +14,26 @@
 #include "AHCI.h"
 #include "GDT.h"
 
-void DrawWelcome(){
-    printf("\n", 0);
-    printf_centered("Made by Cameron McLaughlin under the third rendition", 0);
-    printf("\n", 0);
-    printf_centered("of the GNU General Public License (GPL 3.0)", 0);
-    printf("\n", 0);
-    printf_centered("In memory of King Terry Davis (1969-2018)", 0);
-    printf("\n\n", 0);
-    DrawBox(0, 0, 80, 5, "ChudOS");
-}
-
 void kernel_startup(){
     cls();
 
     PrintCycles();
-    printf(" Enumerating Memory\n", 0);
+    printf(" Enumerating Memory ", 0);
+    take_printf_snapshot();
 
     Enumerate_E820();
 
-    SetTextColor(LGREEN, BLACK);
-    printf("SUCCESS\n", 0);
-    SetTextColor(WHITE, BLACK);
+    printf_success_snapshot("SUCCESS\n", 0);
     PrintCycles();
     printf(" Loading IDT ", 0);
+    take_printf_snapshot();
     pic_remap(0x20, 0x28);
     for(int i = 0; i < 256; i++){
         SetIDTEntry(i, (uint64_t)kernel_panic_stub, 0x08, 0x8E, 0x04);
     }
+    #ifdef DEBUG
+        printf_debug("\nINDEX SELECTOR FLAGS IST\n", 0);
+    #endif
     SetIDTEntry(0x06, (uint64_t)invalid_opcode_stub, 0x08, 0x8F, 0x04);
     SetIDTEntry(0x0D, (uint64_t)gpf_stub, 0x08, 0x8F, 0x04);
     SetIDTEntry(0x0E, (uint64_t)page_fault_stub, 0x08, 0x8F, 0x04);
@@ -57,17 +49,15 @@ void kernel_startup(){
     pic_unmask(0x08); // for syncing time
     SetIDTEntry(0x21, (uint64_t)keyboard_stub, 0x08, 0x8E, 0x00);
     pic_unmask(0x01); // Keyboard
-    SetTextColor(LGREEN, BLACK);
-    printf("SUCCESS\n", 0);
-    SetTextColor(WHITE, BLACK);
+    printf_success_snapshot("SUCCESS\n", 0);
     PrintCycles();
     printf(" Enabling Interrupts ", 0);
+    take_printf_snapshot();
     asm volatile("sti");
-    SetTextColor(LGREEN, BLACK);
-    printf("SUCCESS\n", 0);
-    SetTextColor(WHITE, BLACK);
+    printf_success_snapshot("SUCCESS\n", 0);
     PrintCycles();
     printf(" Setting up paging ", 0);
+    take_printf_snapshot();
 
     InitMem();
 
@@ -76,27 +66,23 @@ void kernel_startup(){
     // made for testing paging
     *test_alloc = (uint64_t)0xFFULL;
     uint64_t test_read = *test_alloc;
-    SetTextColor(LGREEN, BLACK);
-    printf("SUCCESS\n", 0);
-    SetTextColor(WHITE, BLACK);
+    printf_success_snapshot("SUCCESS\n", 0);
 
     PrintCycles();
     printf(" Scanning Busses ", 0);
+    take_printf_snapshot();
     ScanBusses();
-    SetTextColor(LGREEN, BLACK);
-    printf("SUCCESS\n", 0);
-    SetTextColor(WHITE, BLACK);
+    printf_success_snapshot("SUCCESS\n", 0);
 
     PrintCycles();
 
     if(AHCI_Controller == NULL){ 
-        SetTextColor(LRED, BLACK);
-        printf(" No drive detected\n", 0); 
+        printf_error(" No drive detected\n", 0); 
     }else{
         printf(" Initializing Drive ", 0);
+        take_printf_snapshot();
         AHCI_Init(AHCI_Controller);
     }
-    SetTextColor(WHITE, BLACK);
 
     while (1){
 

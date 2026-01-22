@@ -3,8 +3,19 @@
 #include "VGA.h"
 #include "stdbool.h"
 
+#define PRINTF_TYPE_NULL 0x00
+#define PRINTF_TYPE_INT 0x01
+#define PRINTF_TYPE_HEX 0x02
+#define PRINTF_TYPE_BIN 0x03
+#define PRINTF_TYPE_CHAR 0x04
+#define PRINTF_TYPE_STR 0x05
+#define PRINTF_TYPE_PERCENT 0x06
+
 int curX = 0;
 int curY = 0;
+
+int snapshotX = 0;
+int snapshotY = 0;
 
 void printf(const char* toPrint, int length){
         if(length == 0 || length == NULL){ length = calculate_string_length(toPrint); }
@@ -33,7 +44,6 @@ void printf(const char* toPrint, int length){
                 }else{
                     curX++;
                 }
-                //curX++;
             }else if(curChar == '\n'){
                 NewLine();
             }else if(curChar == '\0'){
@@ -339,14 +349,177 @@ void printf_centered(const char* toPrint, int length){
         printf(toPrint, length);
     }
 void NewLine(){
-    if(curY == 79){ Scroll(1); return; }
+    if(curY == 24){
+        Scroll(1); 
+        return; 
+    }
     else{
         curX = 0;
         curY++;
     }
 }
+void printf_debug(const char* toPrint, int length){
+    SetTextColor(LCYAN, BLACK);
+    printf(toPrint, length);
+    SetTextColor(WHITE, BLACK);
+}
+void printf_error(const char* toPrint, int length){
+    SetTextColor(LRED, BLACK);
+    printf(toPrint, length);
+    SetTextColor(WHITE, BLACK);
+}
+void take_printf_snapshot(){
+    snapshotX = curX;
+    snapshotY = curY;
+}
+void printf_snapshot(const char* toPrint, int length){
+    if(snapshotX == curX || snapshotY == curY){
+        printf(toPrint, length);
+        return;
+    }
+    
+    int tempX = curX;
+    int tempY = curY;
+    curX = snapshotX;
+    curY = snapshotY;
+    printf(toPrint, length);
+    curX = tempX;
+    curY = tempY;
+}
+void printf_success(const char* toPrint, int length){
+    SetTextColor(LGREEN, BLACK);
+    printf(toPrint, length);
+    SetTextColor(WHITE, BLACK);
+}
+void printf_debug_snapshot(const char* toPrint, int length){
+    SetTextColor(LCYAN, BLACK);
+    printf_snapshot(toPrint, length);
+    SetTextColor(WHITE, BLACK);
+}
+void printf_error_snapshot(const char* toPrint, int length){
+    SetTextColor(LRED, BLACK);
+    printf_snapshot(toPrint, length);
+    SetTextColor(WHITE, BLACK);
+}
+void printf_success_snapshot(const char* toPrint, int length){
+    SetTextColor(LGREEN, BLACK);
+    printf_snapshot(toPrint, length);
+    SetTextColor(WHITE, BLACK);
+}
+// Gets input index of a string passed into printf, returns a PRINTF_TYPE (see lines 6-13)
+int printf_get_type(const char* toScan, int length, int index){
+    int cur = 0;
+    int seen = 0;
+    index+=1;
+    while(cur < length){
+        if(cur != 0 && toScan[cur - 1] == '%') 
+        { seen++; }else{ cur++; continue; }
 
+        if(seen != index){ cur++; continue; }
+
+        switch (toScan[cur]){
+            case 'i':
+                return PRINTF_TYPE_INT;
+                break;
+            case 'd':
+                return PRINTF_TYPE_INT;
+                break;
+            case 'x':
+                return PRINTF_TYPE_HEX;
+                break;
+            case 'b':
+                return PRINTF_TYPE_BIN;
+                break;
+            case 'c':
+                return PRINTF_TYPE_CHAR;
+                break;
+            case 's':
+                return PRINTF_TYPE_STR;
+                break;
+            case '%':
+                return PRINTF_TYPE_PERCENT;
+                break;
+            default:
+                return PRINTF_TYPE_NULL;
+            break;
+        }
+
+        cur++;
+    }
+}
+int printf_scan_length(const char* toScan, int length){
+    // printf_variable is formatted just like linux's
+    int ret = 0;
+
+    while(length--){
+        ret += (toScan[length-1] == '%' && toScan[length-2] != '%') ? 1 : 0;
+    }
+
+    return ret;
+}
+// prints starting at an index until the next argument, returns its final index
+int printf_print_from(const char* toPrint, int length, int start){    
+    int ret;
+    
+    for(int i = start; i < length; i++){
+        if(toPrint[i] == '%' && toPrint[i+1] != '%'&& toPrint[i-1] != '%'){
+            length = i;
+            i+=2;
+            ret = i;
+            break;
+        }
+    }
+
+    printf(toPrint+start, length-start);
+
+    return ret;
+}
+int get_string_length(const char* str){
+    int cur = 0;
+    while(str[cur] != '\0'){ cur++; }
+    return cur;
+}
+void printf_variable(const char* toPrint, ...){
+    size_t length = get_string_length(toPrint);
+    int args_length = printf_scan_length(toPrint, length);
+
+    if(args_length == 0){printf(toPrint, 0); return;}
+
+    va_list args;
+    va_start(args, toPrint+length+1);
+
+    int cur = 0;
+
+    char variable_print[70];
+
+    for(int i = 0; i < args_length; i++){
+        cur = printf_print_from(toPrint, length, cur);
+        int type = printf_get_type(toPrint, length, i);
+        switch(type){
+            case PRINTF_TYPE_NULL:
+                //return;
+                break;
+            case PRINTF_TYPE_INT:
+                int_to_char_array(va_arg(args, int), variable_print, sizeof(variable_print), 0);
+                printf(variable_print, 0);
+                break;
+            case PRINTF_TYPE_HEX:
+                int_to_char_array_hex(va_arg(args, int), variable_print, sizeof(variable_print), 0);
+                printf(variable_print, 0);
+                break;
+            case PRINTF_TYPE_BIN:
+                int_to_char_array_binary(va_arg(args, int), variable_print, sizeof(variable_print), 0);
+                printf(variable_print, 0);
+                break;
+            default:
+                break;
+        }
+    }
+    //cur = printf_print_from(toPrint, length, cur);
+    va_end(args);
+}
 void Scroll(int n){
     curX = 0;
+    snapshotY--;
     VGA_Scroll(n);
 }
