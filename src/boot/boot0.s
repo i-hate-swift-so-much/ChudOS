@@ -72,8 +72,6 @@ read_boot1_hdd:
         mov ah, 0x0E
         int 0x10
 
-        jmp halt
-
         mov dl, [drive_boot]
         jmp 0x0000:0x1000
 
