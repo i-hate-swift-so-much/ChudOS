@@ -1,7 +1,7 @@
 #!/bin/bash
 rm -rf qemu.log
 
-version_patch="5"
+version_patch="0"
 version_minor="1"
 version_major="0"
 
