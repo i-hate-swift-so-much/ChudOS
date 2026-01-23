@@ -7,7 +7,6 @@ bool AHCI_Ownership = false;
 bool AHCI_Reset = false;
 
 int AHCI_IRQ_LINE;
-
 /*
     Performs the OS/BIOS handoff
 
@@ -55,6 +54,12 @@ void AHCI_HBA_Reset(){
     AHCI_Reset = true;
 }
 
+void AHCI_Setup_Port(uint8_t index){
+    AHCI_PORT* curPort = &(AHCI_Main_MMIO->Ports[index]);
+
+
+}
+
 /*
     Used to initialize an AHCI device, automatically initializes MMIO, fills command register, etc.
     Checklist:
@@ -75,6 +80,7 @@ void AHCI_Init(PCI_Device* device){
     flags.Execute_Disable = false;
 
     AHCI_Main_MMIO = (AHCI_MMIO*)malloc_specific(&KernelTask, device->Header0.BAR5, &flags);
+    (AHCI_MMIO*)malloc_specific(&KernelTask, device->Header0.BAR5+0x1000, &flags);
     #ifdef DEBUG
         printf_debug("\nSuccessfully setup HBA MMIO\n", 0);
     #endif
@@ -130,7 +136,10 @@ void AHCI_Init(PCI_Device* device){
         printf_debug("Succesfully enabled AHCI mode\n", 0);
     #endif
 
-    printf_success_snapshot("SUCCESS ", 0);
+    // set up ports and their command tables
+    AHCI_Setup_Port(0);
+
+    printf_success_snapshot("SUCCESS                ", 0);
 }
 
 void HandleAHCIInterrupt(InterruptRegisters* registers){

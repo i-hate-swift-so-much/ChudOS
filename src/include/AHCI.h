@@ -102,7 +102,7 @@ struct AHCI_MMIO_S{
 	uint8_t  vendor[0x100-0xA0];
 
     // ports
-    AHCI_PORT Ports[1]; // min 1 max 32
+    AHCI_PORT Ports[4]; // min 1 max 32
 } __attribute__((packed));
 
 // AHCI 4.2.2

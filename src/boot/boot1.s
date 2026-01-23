@@ -2,6 +2,7 @@
 
 mov [drive_boot], dl
 
+align 16
 dap_kernel: ; read the kernel into memory
     db 0x10
     db 0x00
@@ -10,6 +11,7 @@ dap_kernel: ; read the kernel into memory
     dw 0x8000
     dq 400
 
+align 16
 dap_kernel_setup: ; read the kernel into memory
     db 0x10
     db 0x00
@@ -18,6 +20,7 @@ dap_kernel_setup: ; read the kernel into memory
     dw 0x4000
     dq 600
 
+align 16
 dap_boot2_1: ; read the first half of the third stage into memory
     db 0x10
     db 0x00
@@ -26,6 +29,7 @@ dap_boot2_1: ; read the first half of the third stage into memory
     dw 0x6000
     dq 6
 
+align 16
 dap_boot2_2: ; read the second half of the third stage into memory
     db 0x10
     db 0x00

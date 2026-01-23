@@ -1,14 +1,19 @@
+.PHONY: clean debug all
+
+BUILD_MAJOR ?= 0
+BUILD_MINOR ?= 0
+BUILD_PATCH ?= 1
+
 as = nasm
 ld = x86_64-elf-ld
 c = x86_64-elf-gcc
 
-asflags := -f bin 
-entryasflags := -f elf64
-ldflags_kernel := -Tkernel64.ld
-cflags := -m64 -I src/include -ffreestanding -nostdlib -c -mno-red-zone
-cflags_dev := -D DEBUG=1 -m64 -I src/include -ffreestanding -nostdlib -c -mno-red-zone
+asflags ?= -f bin
+entryasflags ?= -f elf64
+ldflags_kernel ?= -Tkernel64.ld
+cflags ?= -m64 -I src/include -ffreestanding -nostdlib -c -mno-red-zone
 
-output_img := bin/ChudOS.iso
+output_img := bin/ChudOS.img
 
 bootloader_objs := obj/boot0.bin obj/boot1.bin
 boot0 := src/boot/boot0.s
@@ -31,7 +36,11 @@ drivers_obj := obj/VGA.elf obj/std.elf obj/Keyboard.elf obj/IDT.elf obj/PIC.elf 
 drivers_flat := obj/drivers.bin
 
 all: clean build_boot boot_bin build_kernel link_kernel
-debug: clean build_boot boot_bin build_kernel_debug link_kernel
+ifneq ($(filter debug,$(MAKECMDGOALS)),)
+    cflags += -DDEBUG -DVERSION_MAJOR=$(BUILD_MAJOR) -DVERSION_MINOR=$(BUILD_MINOR) -DVERSION_PATCH=$(BUILD_PATCH)
+else
+	cflags += -DVERSION_MAJOR=$(BUILD_MAJOR) -DVERSION_MINOR=$(BUILD_MINOR) -DVERSION_PATCH=$(BUILD_PATCH)
+endif
 
 clean:
 	rm -rf bin/*
@@ -72,31 +81,6 @@ build_kernel ${kernel_src} ${drivers_src} ${kernel_entry_src}:
 	${c} src/kernel/drivers/PCI.c ${cflags} -o obj/PCI.elf
 	${c} src/kernel/drivers/GDT.c ${cflags} -o obj/GDT.elf
 	${c} src/kernel/drivers/VGA_E.c ${cflags} -o obj/VGA_E.elf
-
-build_kernel_debug ${kernel_src} ${drivers_src} ${kernel_entry_src}: 
-	${c} src/kernel/kernel_setup.c ${cflags_dev} -o obj/kernel_setup.o
-	${as} ${entryasflags} src/kernel/kernel_setup_entry.s -o obj/kernel_setup_entry.o
-
-	${c} ${kernel_src} ${cflags_dev} -o ${kernel_obj}
-	${as} ${entryasflags} ${kernel_entry_src} -o ${kernel_entry_obj}
-	${c} src/kernel/drivers/VGA.c ${cflags_dev} -o obj/VGA.elf
-	${c} src/kernel/lib/std.c ${cflags_dev} -o obj/std.elf
-	${c} src/kernel/drivers/IDT.c ${cflags_dev} -o obj/IDT.elf
-	${c} src/kernel/drivers/Keyboard.c -mgeneral-regs-only ${cflags_dev} -o obj/Keyboard.elf
-	${c} src/kernel/drivers/PIC.c ${cflags_dev} -o obj/PIC.elf
-	${c} src/kernel/drivers/syscall.c ${cflags_dev} -mgeneral-regs-only -o obj/syscall.elf
-	${c} src/kernel/drivers/interrupt_stubs.s ${cflags_dev} -mgeneral-regs-only -o obj/interrupt_stubs.elf
-	${c} src/kernel/drivers/Math.c ${cflags_dev} -o obj/Math.elf
-	${c} src/kernel/drivers/Memory.c ${cflags_dev} -o obj/Memory.elf
-	${c} src/kernel/drivers/Power.c ${cflags_dev} -o obj/Power.elf
-	${c} src/kernel/drivers/KernelPanic.c ${cflags_dev} -o obj/KernelPanic.elf
-	${c} src/kernel/drivers/Exceptions.c ${cflags_dev} -o obj/Exceptions.elf
-	${c} src/kernel/drivers/Timer.c ${cflags_dev} -o obj/Timer.elf
-	${c} src/kernel/drivers/AHCI.c ${cflags_dev} -o obj/AHCI.elf
-	${c} src/kernel/drivers/Tasks.c ${cflags_dev} -o obj/Tasks.elf
-	${c} src/kernel/drivers/PCI.c ${cflags_dev} -o obj/PCI.elf
-	${c} src/kernel/drivers/GDT.c ${cflags_dev} -o obj/GDT.elf
-	${c} src/kernel/drivers/VGA_E.c ${cflags_dev} -o obj/VGA_E.elf
 
 link_kernel ${kernel_obj} ${drivers_obj}:
 	${ld} -TkernelSetup64.ld -o obj/kernel_setup.elf obj/kernel_setup_entry.o obj/kernel_setup.o

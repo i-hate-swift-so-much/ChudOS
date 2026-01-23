@@ -14,6 +14,18 @@
 #include "AHCI.h"
 #include "GDT.h"
 
+#ifndef VERSION_MAJOR
+    #define VERSION_MAJOR 0
+#endif
+
+#ifndef VERSION_MINOR
+    #define VERSION_MINOR 0
+#endif
+
+#ifndef VERSION_PATCH
+    #define VERSION_PATCH 1
+#endif
+
 void kernel_startup(){
     cls();
 
@@ -83,6 +95,8 @@ void kernel_startup(){
         take_printf_snapshot();
         AHCI_Init(AHCI_Controller);
     }
+
+    printf_variable("ChudOS Version %i.%i.%i\n", VERSION_MAJOR, VERSION_MINOR, VERSION_PATCH);
 
     while (1){
 
