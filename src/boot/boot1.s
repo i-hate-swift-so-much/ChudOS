@@ -119,10 +119,6 @@ load_stage3_floppy:
 ; set AX to the desired LBA, then the target C H and S will be set accordingly. must call get_floppy_info first
 calculate_LBA_to_CHS:
     pusha
-
-    ; preserve the argument
-    mov [lba_chs_arg], ax
-
     xor bx, bx
     xor dx, dx
     movzx bx, byte [FloppyInfoStruct.sector_max]
@@ -187,7 +183,6 @@ load_kernel_setup_floppy:
     mov dword [floppy_target_address], 0x40000
 
     mov [floppy_read_loop], 1
-
     .loop:
     mov al, [floppy_read_loop]
     cmp al, 0
