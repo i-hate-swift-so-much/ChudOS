@@ -6,6 +6,7 @@
 #define BUS_COUNT
 
 PCI_Device* AHCI_Controller = NULL;
+PCI_Device* IDE_Controller = NULL;
 
 PCI_Device Devices[256];
 
@@ -142,7 +143,7 @@ PCI_Header_0x1 PCI_ReadHeader1(PCI_Common_Header common, uint8_t bus, uint8_t sl
 
 void ScanBusses(){
     #ifdef DEBUG
-        printf("\n", 0);
+        printf_debug("\nVendID DevcID\tCLASS   SUBCLASS   ProgIF\n", 0);
     #endif
 
     uint8_t ClassCode;
@@ -189,17 +190,29 @@ void ScanBusses(){
 
             #ifdef DEBUG
                 char test_char[22];
-                int_to_char_array_hex(curHeader.ClassCode, test_char, sizeof(test_char), 4);
+                int_to_char_array_hex(curHeader.VendorID, test_char, sizeof(test_char), 4);
                 printf_debug(test_char, 0);
                 printf(":", 0);
-                int_to_char_array_hex(curHeader.SubClass, test_char, sizeof(test_char), 4);
+                int_to_char_array_hex(curHeader.DeviceID, test_char, sizeof(test_char), 4);
+                printf_debug(test_char, 0);
+                printf("\t", 0);
+
+                int_to_char_array_hex(curHeader.ClassCode, test_char, sizeof(test_char), 5);
+                printf_debug(test_char, 0);
+                printf(":", 0);
+                int_to_char_array_hex(curHeader.SubClass, test_char, sizeof(test_char), 8);
+                printf_debug(test_char, 0);
+                printf(":", 0);
+                int_to_char_array_hex(curHeader.ProgIF, test_char, sizeof(test_char), 4);
                 printf_debug(test_char, 0);
                 printf("\n", 0);
             #endif
 
-            if(curHeader.ClassCode == 0x01 && curHeader.SubClass == 0x06 && curHeader.ProgIF == 0x01){
-                // this class data indicates that the devices is a SATA device using the AHCI controller.
+            if(curHeader.ClassCode == PCI_CLASS_STR && curHeader.SubClass == 0x06 && curHeader.ProgIF == 0x01){
                 AHCI_Controller = &Devices[deviceRun];
+            }else if(curHeader.ClassCode == PCI_CLASS_STR && curHeader.SubClass == 0x01){
+                IDE_Controller = &Devices[deviceRun];
+                printf("ide\n", 0);
             }
             deviceRun++;
         }

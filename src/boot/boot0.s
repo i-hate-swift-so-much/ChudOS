@@ -3,11 +3,15 @@
 
 mov [drive_boot], dl
 
+mov al, '1'
+mov ah, 0x0E
+int 0x10
+
 align 16
 dap:
     db 0x10
     db 0x00
-    dw 4
+    dw 8
     dw 0x1000
     dw 0x0000
     dq 1
@@ -42,7 +46,9 @@ segment_registers:
 
 
 read_boot1_hdd:
-    call clear_screen
+    mov al, 'H'
+    mov ah, 0x0E
+    int 0x10
 
     mov si, 3
     .retry_hdd:
@@ -60,15 +66,11 @@ read_boot1_hdd:
     jnc read_boot1_hdd.hdd_success
 
     dec si
-    jnz read_boot1_floppy.retry_floppy
+    jnz read_boot1_hdd.retry_hdd
     jmp fail_hdd
 
     .hdd_success:
-        mov al, 'S'
-        mov ah, 0x0E
-        int 0x10
-
-        mov al, 'H'
+        mov al, '1'
         mov ah, 0x0E
         int 0x10
 
@@ -76,7 +78,9 @@ read_boot1_hdd:
         jmp 0x0000:0x1000
 
 read_boot1_floppy:
-    call clear_screen
+    mov al, 'F'
+    mov ah, 0x0E
+    int 0x10
 
     mov [target_cylinder], 0
     mov [target_sector], 2
@@ -85,24 +89,25 @@ read_boot1_floppy:
     mov si, 3
     .retry_floppy:
 
-    mov [target_cylinder], 0
-    mov [target_sector], 1
-    mov [target_head], 1
-
-    .first_try:
     mov ah, 0x00
     mov dl, [drive_boot]
     int 0x13 ; reset drive
+    clc
 
     mov ch, [target_cylinder] ; cylinder
     mov cl, [target_sector] ; sector
+    and cl, 0x3F
+    mov al, [target_cylinder]
+    shr al, 2
+    and al, 0xC0
+    or cl, al
     mov dh, [target_head] ; head
     mov dl, [drive_boot]
     xor ax, ax
     mov es, ax
     mov bx, 0x1000
     mov ah, 0x2
-    mov al, 4
+    mov al, 8
     int 0x13
     jnc read_boot1_floppy.floppy_success
 
@@ -122,19 +127,13 @@ read_boot1_floppy:
         jmp 0x0000:0x1000
 
 fail_floppy:
-    mov al, 'F'
-    mov ah, 0x0E
-    int 0x10
-    mov al, 'H'
+    mov al, '0'
     mov ah, 0x0E
     int 0x10
     jmp halt
 
 fail_hdd:
-    mov al, 'F'
-    mov ah, 0x0E
-    int 0x10
-    mov al, 'H'
+    mov al, '0'
     mov ah, 0x0E
     int 0x10
     jmp halt

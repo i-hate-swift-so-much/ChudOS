@@ -132,6 +132,7 @@ typedef struct{
 }PCI_Status_Register;
 
 extern PCI_Device* AHCI_Controller;
+extern PCI_Device* IDE_Controller;
 
 uint32_t PCI_CreateConfigAddress(uint8_t bus, uint8_t slot, uint8_t func, uint8_t offset);
 PCI_Common_Header PCI_ReadCommonHeader(uint8_t bus, uint8_t slot);

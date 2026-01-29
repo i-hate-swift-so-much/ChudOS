@@ -6,6 +6,9 @@ AHCI_MMIO* AHCI_Main_MMIO;
 bool AHCI_Ownership = false;
 bool AHCI_Reset = false;
 
+bool AHCI_S64A = false;
+bool AHCI_Command_Queuing = false;
+
 int AHCI_IRQ_LINE;
 /*
     Performs the OS/BIOS handoff
@@ -57,7 +60,15 @@ void AHCI_HBA_Reset(){
 void AHCI_Setup_Port(uint8_t index){
     AHCI_PORT* curPort = &(AHCI_Main_MMIO->Ports[index]);
 
+    PagePermissions flags;
+    flags.flags = KERNEL_FLAGS_UNCACHEABLE;
+    flags.Execute_Disable = false;
 
+    if(index % 4 == 0){
+        malloc_specific(&KernelTask, (uint64_t)curPort, &flags);
+    }
+
+    curPort->Command_List_BAR = (uint64_t)malloc_specific(&KernelTask, CalculatePageAddress(FindNextFreePhysical()), &flags);
 }
 
 /*
@@ -130,16 +141,21 @@ void AHCI_Init(PCI_Device* device){
         printf_debug("Succesfully registered AHCI IDT entry\n", 0);
     #endif
 
+    // AHCI specification 3.1.2
     AHCI_Main_MMIO->Global_Host_Control |= (1 << 31); // this sets the AHCI enable
+    AHCI_Main_MMIO->Global_Host_Control |= (1 << 1); // this sets the interrupt enable
 
     #ifdef DEBUG
-        printf_debug("Succesfully enabled AHCI mode\n", 0);
+        printf_debug("Succesfully enabled AHCI mode and interrupts\n", 0);
     #endif
+
+    AHCI_S64A = ((AHCI_Main_MMIO->Host_Capabilities) >> 31) & 1;
+    AHCI_Command_Queuing = ((AHCI_Main_MMIO->Host_Capabilities) >> 30) & 1;
 
     // set up ports and their command tables
     AHCI_Setup_Port(0);
 
-    printf_success_snapshot("SUCCESS                ", 0);
+    printf_success_snapshot("SUCCESS                    ", 0);
 }
 
 void HandleAHCIInterrupt(InterruptRegisters* registers){

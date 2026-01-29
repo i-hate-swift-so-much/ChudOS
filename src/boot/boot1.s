@@ -2,6 +2,8 @@
 
 mov [drive_boot], dl
 
+jmp segments
+
 align 16
 dap_kernel: ; read the kernel into memory
     db 0x10
@@ -15,7 +17,7 @@ align 16
 dap_kernel_setup: ; read the kernel into memory
     db 0x10
     db 0x00
-    dw 127
+    dw 1
     dw 0x0000
     dw 0x4000
     dq 600
@@ -27,7 +29,7 @@ dap_boot2_1: ; read the first half of the third stage into memory
     dw 127
     dw 0x0000
     dw 0x6000
-    dq 6
+    dq 20
 
 align 16
 dap_boot2_2: ; read the second half of the third stage into memory
@@ -36,27 +38,37 @@ dap_boot2_2: ; read the second half of the third stage into memory
     dw 127
     dw 0xFE00
     dw 0x6000
-    dq 133
+    dq 147
 
+segments:
 ; Reset segment registers (again)
 cli
-mov ax, cs
-mov ds, ax
-mov es, ax
-
 xor ax, ax
 mov ss, ax
-mov sp, 0x1FFF
-sti
+mov sp, 0x7000 ; set stack pointer
+mov ds, ax
+mov es, ax
+sti ; re-enable interrupts
 
-mov si, boot_msg_2_0
 call clear_screen
-call print
+
+mov al, '2'
+mov ah, 0x0E
+int 0x10
+
+mov dl, [drive_boot]
+cmp dl, 0x80
+je load_stage3
+jmp load_stage3_floppy
 
 code_segment equ kernel_code_descriptor - gdt_start
 data_segment equ kernel_data_descriptor - gdt_start
 
 load_stage3:
+    mov al, 'H'
+    mov ah, 0x0E
+    int 0x10
+
     ; load kernel
     mov ah, 0x42
     mov dl, [drive_boot]
@@ -85,14 +97,380 @@ load_stage3:
     int 0x13
     jc read_error
 
-    ;call set_VBE_mode
-    mov si, boot_msg_2_1
-    call print
 
     call get_upper_memory
-    ;mov eax, [e820_cur_offset]
+    jmp swap_protected
+
+load_stage3_floppy:
+    mov al, 'F'
+    mov ah, 0x0E
+    int 0x10
+    
+    call get_floppy_info
+    
+    call load_kernel_floppy
+    call load_kernel_setup_floppy
+    call load_boot2_1_floppy
+
+    call get_upper_memory
     ;jmp halt
     jmp swap_protected
+
+; set AX to the desired LBA, then the target C H and S will be set accordingly. must call get_floppy_info first
+calculate_LBA_to_CHS:
+    pusha
+
+    ; preserve the argument
+    mov [lba_chs_arg], ax
+
+    xor bx, bx
+    xor dx, dx
+    movzx bx, byte [FloppyInfoStruct.sector_max]
+    div bx
+
+    inc dx
+    mov [target_sector], dl
+
+    xor bx, bx
+    xor dx, dx
+    mov bl, [FloppyInfoStruct.head_count]
+
+    div bx
+
+    mov [target_head], dl
+    mov [target_cylinder], al
+
+    popa
+
+    ret
+
+get_floppy_info:
+    pusha
+
+    ; clear es:di
+    xor ax, ax
+    mov es, ax
+    xor di, di
+
+    mov ah, 0x08
+    mov dl, [drive_boot]
+    int 0x13
+
+    mov [FloppyInfoStruct.drive_count], dl
+
+    mov dl, dh
+    mov dh, 0
+
+    mov [FloppyInfoStruct.head_max], dl
+    inc dl
+    mov [FloppyInfoStruct.head_count], dl
+
+    mov al, cl
+    and al, 0x3F
+    mov [FloppyInfoStruct.sector_max], al
+
+    mov ax, cx
+    xchg al, ah
+    shr ah, 6
+
+    mov word [FloppyInfoStruct.cylinder_max], ax
+
+    popa
+
+    ret
+
+load_kernel_setup_floppy:
+    ; starting LBA = 600
+    mov ax, 600
+    call calculate_LBA_to_CHS
+
+    mov dword [floppy_target_address], 0x40000
+
+    mov [floppy_read_loop], 1
+
+    .loop:
+    mov al, [floppy_read_loop]
+    cmp al, 0
+    je load_boot2_1_floppy.loop_success
+
+    mov si, 3 ; for each sector read, we can retry 3 times
+    .retry:
+
+    mov al, [target_sector]
+    cmp al, [FloppyInfoStruct.sector_max]
+    jg load_boot2_1_floppy.over_sector
+    jmp load_boot2_1_floppy.valid_sector
+
+    .over_sector:
+        ; correct the sector count
+        mov al, [target_sector]
+        sub al, [FloppyInfoStruct.sector_max]
+        mov [target_sector], al
+
+        mov al, [target_head]
+        inc al
+        mov [target_head], al
+
+        cmp al, [FloppyInfoStruct.head_max]
+        jg load_boot2_1_floppy.over_head
+        jmp load_boot2_1_floppy.valid_sector
+
+    .over_head:
+        mov [target_head], 0
+
+        mov al, [target_cylinder]
+        inc al
+        mov [target_cylinder], al
+
+    .valid_sector:
+
+    xor ax, ax
+    mov ds, ax
+    mov ch, [target_cylinder] ; cylinder
+    mov cl, [target_sector] ; sector
+    and cl, 0x3F
+    mov al, [target_cylinder]
+    shr al, 2
+    and al, 0xC0
+    or cl, al
+    mov dh, [target_head] ; head
+    mov dl, [drive_boot]
+    mov dword eax, [floppy_target_address]
+    shr dword eax, 4
+    mov es, ax
+    xor bx, bx
+    mov ah, 0x2
+    mov al, 1 ; sectors to read
+    int 0x13
+    jnc load_boot2_1_floppy.floppy_success
+
+    dec si
+    jnz load_boot2_1_floppy.retry
+    jmp fail_floppy
+
+    .floppy_success:
+        mov al, [target_sector]
+        add al, 1
+        mov [target_sector], al
+
+        mov al, [floppy_read_loop]
+        dec al
+        mov [floppy_read_loop], al
+
+        mov dword eax, [floppy_target_address]
+        add eax, 512
+        mov dword [floppy_target_address], eax
+
+        jmp load_boot2_1_floppy.loop
+    .loop_success:
+        mov al, '1'
+        mov ah, 0x0E
+        int 0x10
+
+        ret
+
+load_kernel_floppy:
+    ; LBA = 400
+    mov ax, 400
+    call calculate_LBA_to_CHS
+
+    mov dword [floppy_target_address], 0x80000
+
+    mov [floppy_read_loop], 127
+    .loop:
+    mov al, [floppy_read_loop]
+    cmp al, 0
+    je load_kernel_floppy.loop_success
+
+    mov si, 3 ; for each sector read, we can retry 3 times
+    .retry:
+
+    mov al, [target_sector]
+    cmp al, [FloppyInfoStruct.sector_max]
+    jg load_kernel_floppy.over_sector
+    jmp load_kernel_floppy.valid_sector
+
+    .over_sector:
+        ; correct the sector count
+        mov al, [target_sector]
+        sub al, [FloppyInfoStruct.sector_max]
+        mov [target_sector], al
+
+        mov al, [target_head]
+        inc al
+        mov [target_head], al
+
+        cmp al, [FloppyInfoStruct.head_max]
+        jg load_kernel_floppy.over_head
+        jmp load_kernel_floppy.valid_sector
+
+    .over_head:
+        mov [target_head], 0
+
+        mov al, [target_cylinder]
+        inc al
+        mov [target_cylinder], al
+
+    .valid_sector:
+
+    xor ax, ax
+    mov ds, ax
+    mov ch, [target_cylinder] ; cylinder
+    mov cl, [target_sector] ; sector
+    and cl, 0x3F
+    mov al, [target_cylinder]
+    shr al, 2
+    and al, 0xC0
+    or cl, al
+    mov dh, [target_head] ; head
+    mov dl, [drive_boot]
+    mov dword eax, [floppy_target_address]
+    shr dword eax, 4
+    mov es, ax
+    xor bx, bx
+    mov ah, 0x2
+    mov al, 1 ; sectors to read
+    int 0x13
+    jnc load_kernel_floppy.floppy_success
+
+    dec si
+    jnz load_kernel_floppy.retry
+    jmp fail_floppy
+
+    .floppy_success:
+        mov al, [target_sector]
+        add al, 1
+        mov [target_sector], al
+
+        mov al, [floppy_read_loop]
+        sub al, 1
+        mov [floppy_read_loop], al
+
+        mov dword eax, [floppy_target_address]
+        add eax, 512
+        mov dword [floppy_target_address], eax
+
+        jmp load_kernel_floppy.loop
+    .loop_success:
+        mov al, '1'
+        mov ah, 0x0E
+        int 0x10
+        ret
+
+load_boot2_1_floppy:
+    ; LBA = 20
+    mov ax, 20
+    call calculate_LBA_to_CHS
+
+    mov dword [floppy_target_address], 0x60000
+
+    mov [floppy_read_loop], 254
+
+    .loop:
+    mov al, [floppy_read_loop]
+    cmp al, 0
+    je load_boot2_1_floppy.loop_success
+
+    mov si, 3 ; for each sector read, we can retry 3 times
+    .retry:
+
+    mov al, [target_sector]
+    cmp al, [FloppyInfoStruct.sector_max]
+    jg load_boot2_1_floppy.over_sector
+    jmp load_boot2_1_floppy.valid_sector
+
+    .over_sector:
+        ; correct the sector count
+        mov al, [target_sector]
+        sub al, [FloppyInfoStruct.sector_max]
+        mov [target_sector], al
+
+        mov al, [target_head]
+        inc al
+        mov [target_head], al
+
+        cmp al, [FloppyInfoStruct.head_max]
+        jg load_boot2_1_floppy.over_head
+        jmp load_boot2_1_floppy.valid_sector
+
+    .over_head:
+        mov [target_head], 0
+
+        mov al, [target_cylinder]
+        inc al
+        mov [target_cylinder], al
+
+    .valid_sector:
+
+    xor ax, ax
+    mov ds, ax
+    mov ch, [target_cylinder] ; cylinder
+    mov cl, [target_sector] ; sector
+    and cl, 0x3F
+    mov al, [target_cylinder]
+    shr al, 2
+    and al, 0xC0
+    or cl, al
+    mov dh, [target_head] ; head
+    mov dl, [drive_boot]
+    mov dword eax, [floppy_target_address]
+    shr dword eax, 4
+    mov es, ax
+    xor bx, bx
+    mov ah, 0x2
+    mov al, 1 ; sectors to read
+    int 0x13
+    jnc load_boot2_1_floppy.floppy_success
+
+    dec si
+    jnz load_boot2_1_floppy.retry
+    jmp fail_floppy
+
+    .floppy_success:
+        mov al, [target_sector]
+        add al, 1
+        mov [target_sector], al
+
+        mov al, [floppy_read_loop]
+        dec al
+        mov [floppy_read_loop], al
+
+        mov dword eax, [floppy_target_address]
+        add eax, 512
+        mov dword [floppy_target_address], eax
+
+        jmp load_boot2_1_floppy.loop
+    .loop_success:
+        mov al, '1'
+        mov ah, 0x0E
+        int 0x10
+
+        ret
+
+fail_floppy:
+    mov al, '0'
+    mov ah, 0x0E
+    int 0x10
+    mov al, 'F'
+    mov ah, 0x0E
+    int 0x10
+
+    ; get the last status
+    mov ah, 0x01
+    mov dl, [drive_boot]
+    int 0x13
+    mov [floppy_return_code], ah
+
+    xor eax, eax
+    mov al, [floppy_return_code]
+    xor ebx, ebx
+    xor ecx, ecx
+    xor edx, edx
+    mov bl, [target_cylinder]
+    mov cl, [FloppyInfoStruct.head_max]
+    mov dl, [target_sector]
+
+    jmp halt
 
 get_upper_memory:
     ; uses bios call 0x15 eax=0xE820 to get info about the upper memory.
@@ -127,25 +505,22 @@ get_upper_memory:
     jmp get_upper_memory.next_loop
 
     .e820_fail:
-        mov si, e820_fail_msg
-        call print
         jmp halt
 
     .upper_memory_done:  
-        mov si, upper_memory_done_msg
-        call print
-
         mov eax, [e820_cur_offset]
         mov [0xEFE8], eax
 
         ret
 
 read_error:
-    mov si, boot_err
-    call print
+    mov al, 'F'
+    mov ah, 0x0E
+    int 0x10
+    mov al, 'H'
+    mov ah, 0x0E
+    int 0x10
     jmp halt
-
-
 
 
 make_vbe_array:
@@ -206,16 +581,12 @@ get_vbe_mode:
     ret
 
 vbe_errori:
-    mov si, vbe_error_msgi
-    call print
     mov ax, 0xE001
     mov dx, [VbeFlags]
     mov cx, [filter_run_count]
     jmp halt
 
 vbe_errorm:
-    mov si, vbe_error_msgm
-    call print
     mov ax, 0xE002
     mov dx, [VbeFlags]
     mov cx, [filter_run_count]
@@ -259,13 +630,6 @@ clear_screen:
     int 0x10
     ret
 
-print:
-    lodsb ; load byte at ds:si to AL and increments SI
-    cmp al, 0 ; check for null terminator
-    je .done
-    mov ah, 0x0E
-    int 0x10
-    jmp print
 .done:
     ret
 
@@ -337,30 +701,42 @@ halt32:
     jmp halt32
 
 
-boot_msg_2_0: db "BOOT_1",0x0A,0x0D,0 ; Just found out that 0x0A is newline and 0x0D is carry
-boot_msg_2_1: db "PROT_1",0x0A,0x0D,0
-boot_err: db "READ_ERR",0x0A,0x0D,0
-vbe_signature: db "VBE2"
-vbe_version: dw 0x0200
-vbe_error_msg: db "VBE not supported.",0x0A,0x0D,0
-vbe_error_msgi: db "Couldn't get VBE Info.",0x0A,0x0D,0
-vbe_error_msgm: db "Couldn't get VBE Mode Info.",0x0A,0x0D,0
-filter_no_match_msg: db "VBE BIOS incompatible with 1024x768x24 mode",0x0A,0x0D,0
-vbe_success: db "Successfully set VBE mode",0x0A,0x0D,0
-e820_fail_msg: db "MEM_MAP_N",0x0A,0x0D,0
-upper_memory_done_msg: db "MEM_MAP_Y",0x0A,0x0D,0
+
 
 memory_type: resb 1
 upper_memory: resq 1
 set_mode: resb 2
 drive_boot: resb 1
 
+floppy_read_loop: resb 1
+
+target_cylinder: resb 2
+target_head: resb 1
+target_sector: resb 1
+
+floppy_target_address: resb 4
+
+floppy_return_code: resb 1
+
 filter_run_count: resb 2
+
+vbe_signature: db 'VBE2'
+vbe_version: db 0x0200
 
 VbeFlags: resb 1
 
 cur_row: resb 2
 cur_col: resb 2
+
+lba_chs_arg: resb 2
+
+FloppyInfoStruct:
+    .drive_count: resb 1
+    .cylinder_max: resb 2
+    .head_max: resb 1
+    .sector_max: resb 1
+
+    .head_count: resb 1
 
 e820_cur_offset: resb 4
 
@@ -423,4 +799,4 @@ VBEModeInfoBlock:
     .Reserved2: resb 206
 
 
-times 2048-($-$$) db 0
+times 4096-($-$$) db 0
