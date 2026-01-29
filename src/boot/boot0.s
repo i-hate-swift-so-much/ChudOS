@@ -45,6 +45,41 @@ segment_registers:
     je read_boot1_floppy
 
 
+get_floppy_info:
+    pusha
+
+    ; clear es:di
+    xor ax, ax
+    mov es, ax
+    xor di, di
+
+    mov ah, 0x08
+    mov dl, [drive_boot]
+    int 0x13
+
+    mov [FloppyInfoStruct.drive_count], dl
+
+    mov dl, dh
+    mov dh, 0
+
+    mov [FloppyInfoStruct.head_max], dl
+    inc dl
+    mov [FloppyInfoStruct.head_count], dl
+
+    mov al, cl
+    and al, 0x3F
+    mov [FloppyInfoStruct.sector_max], al
+
+    mov ax, cx
+    xchg al, ah
+    shr ah, 6
+
+    mov word [FloppyInfoStruct.cylinder_max], ax
+
+    popa
+
+    ret
+
 read_boot1_hdd:
     mov al, 'H'
     mov ah, 0x0E
@@ -116,10 +151,7 @@ read_boot1_floppy:
     jmp fail_floppy
     
     .floppy_success:
-        mov al, 'S'
-        mov ah, 0x0E
-        int 0x10
-        mov al, 'F'
+        mov al, '1'
         mov ah, 0x0E
         int 0x10
 
