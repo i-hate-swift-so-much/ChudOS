@@ -29,7 +29,7 @@ dap_boot2_1: ; read the first half of the third stage into memory
     dw 127
     dw 0x0000
     dw 0x6000
-    dq 2068
+    dq 2048
 
 align 16
 dap_boot2_2: ; read the second half of the third stage into memory
@@ -38,7 +38,7 @@ dap_boot2_2: ; read the second half of the third stage into memory
     dw 127
     dw 0xFE00
     dw 0x6000
-    dq 2195
+    dq 2175
 
 segments:
 ; Reset segment registers (again)
@@ -265,7 +265,7 @@ load_kernel_setup_floppy:
         ret
 
 load_kernel_floppy:
-    ; LBA = 400
+    ; LBA = 2448
     mov ax, 2448
     call calculate_LBA_to_CHS
 
@@ -354,7 +354,7 @@ load_kernel_floppy:
 
 load_boot2_1_floppy:
     ; LBA = 20
-    mov ax, 2068
+    mov ax, 2048
     call calculate_LBA_to_CHS
 
     mov dword [floppy_target_address], 0x60000

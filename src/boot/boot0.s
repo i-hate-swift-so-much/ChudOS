@@ -17,7 +17,7 @@ dap:
     dw 8
     dw 0x1000
     dw 0x0000
-    dq 2048
+    dq 1
 
 start:
     cli ; Disable Interrupts
@@ -103,11 +103,9 @@ read_boot1_floppy:
     mov ah, 0x0E
     int 0x10
 
-    ; this is practically LBA 2048 I hope
-
-    mov [target_cylinder], 1
-    mov [target_head], 1
-    mov [target_sector], 15
+    mov [target_cylinder], 0
+    mov [target_head], 0
+    mov [target_sector], 2
 
     mov dword [floppy_target_address], 0x1000
 
