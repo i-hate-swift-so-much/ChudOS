@@ -42,9 +42,10 @@ segment_registers:
     ; find out if the BIOS is treating the (presumably) USB as HDD or FDD
     mov dl, [drive_boot]
     cmp dl, 0x80
-    je read_boot1_hdd
-    cmp dl, 0x00
-    je read_boot1_floppy
+    jl read_boot1_floppy
+    cmp dl, 0xFF
+    jl read_boot1_hdd
+    jmp halt
 
 ; set AX to the desired LBA, then the target C H and S will be set accordingly. must call get_floppy_info first
 calculate_LBA_to_CHS:
@@ -141,7 +142,6 @@ read_boot1_floppy:
     mov al, 'F'
     mov ah, 0x0E
     int 0x10
-
 
     ; starting LBA = 600
     mov ax, 1
@@ -247,6 +247,31 @@ fail_hdd:
 halt:
     hlt
     jmp halt
+
+
+; AX should be the number to print
+print_int:
+    mov cx, 0
+    mov bx, 10
+
+    .divide_loop:
+        xor dx, dx
+        div bx
+        push dx ; the remainder
+        inc cx
+        cmp ax, 0
+        jne .divide_loop
+
+    .print_loop:
+        pop ax
+        add al, '0'
+        mov ah, 0x0E
+        int 0x10
+        dec cx
+        cmp cx, 0
+        jne .print_loop
+
+    ret
 
 drive_boot: resb 1
 target_cylinder: resb 1
