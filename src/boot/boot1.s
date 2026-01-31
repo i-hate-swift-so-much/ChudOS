@@ -6,12 +6,12 @@ jmp segments
 
 align 16
 dap_kernel: ; read the kernel into memory
-    db 0x10
-    db 0x00
-    dw 127
-    dw 0x0000
-    dw 0x8000
-    dq 400
+    db 0x10 ; always 0x10
+    db 0x00 ;
+    dw 127 ; sectors to read
+    dw 0x0000 ; offset
+    dw 0x8000 ; segment
+    dq 2448 ; start lba
 
 align 16
 dap_kernel_setup: ; read the kernel into memory
@@ -20,7 +20,7 @@ dap_kernel_setup: ; read the kernel into memory
     dw 1
     dw 0x0000
     dw 0x4000
-    dq 600
+    dq 2648
 
 align 16
 dap_boot2_1: ; read the first half of the third stage into memory
@@ -29,7 +29,7 @@ dap_boot2_1: ; read the first half of the third stage into memory
     dw 127
     dw 0x0000
     dw 0x6000
-    dq 20
+    dq 2068
 
 align 16
 dap_boot2_2: ; read the second half of the third stage into memory
@@ -38,7 +38,7 @@ dap_boot2_2: ; read the second half of the third stage into memory
     dw 127
     dw 0xFE00
     dw 0x6000
-    dq 147
+    dq 2195
 
 segments:
 ; Reset segment registers (again)
@@ -176,8 +176,8 @@ get_floppy_info:
     ret
 
 load_kernel_setup_floppy:
-    ; starting LBA = 600
-    mov ax, 600
+    ; starting LBA = 2648
+    mov ax, 2648
     call calculate_LBA_to_CHS
 
     mov dword [floppy_target_address], 0x40000
@@ -266,7 +266,7 @@ load_kernel_setup_floppy:
 
 load_kernel_floppy:
     ; LBA = 400
-    mov ax, 400
+    mov ax, 2448
     call calculate_LBA_to_CHS
 
     mov dword [floppy_target_address], 0x80000
@@ -354,7 +354,7 @@ load_kernel_floppy:
 
 load_boot2_1_floppy:
     ; LBA = 20
-    mov ax, 20
+    mov ax, 2068
     call calculate_LBA_to_CHS
 
     mov dword [floppy_target_address], 0x60000

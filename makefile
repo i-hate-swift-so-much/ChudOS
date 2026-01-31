@@ -56,8 +56,8 @@ build_boot: ${boot0} ${boot1}
 boot_bin: ${boot0_obj} ${boot1_obj}
 	dd if=/dev/zero of=${output_img} bs=512 count=4096
 	dd if=${boot0_obj} of=${output_img} bs=512 seek=0 conv=notrunc
-	dd if=${boot1_obj} of=${output_img} bs=512 seek=1 conv=notrunc
-	dd if=${boot2_obj} of=${output_img} bs=512 seek=20 conv=notrunc
+	dd if=${boot1_obj} of=${output_img} bs=512 seek=2048 conv=notrunc
+	dd if=${boot2_obj} of=${output_img} bs=512 seek=2068 conv=notrunc
 
 build_kernel ${kernel_src} ${drivers_src} ${kernel_entry_src}: 
 	${c} src/kernel/kernel_setup.c ${cflags} -o obj/kernel_setup.o
@@ -91,5 +91,5 @@ link_kernel ${kernel_obj} ${drivers_obj}:
 
 	${ld} ${ldflags_kernel} -o ${kernel_link} ${kernel_entry_obj} ${drivers_obj} ${kernel_obj}
 	x86_64-elf-objcopy -O binary ${kernel_link} ${kernel_flat}
-	dd if=${kernel_flat} of=${output_img} bs=512 seek=400 conv=notrunc
-	dd if=obj/kernel_setup.bin of=${output_img} bs=512 seek=600 conv=notrunc
+	dd if=${kernel_flat} of=${output_img} bs=512 seek=2448 conv=notrunc
+	dd if=obj/kernel_setup.bin of=${output_img} bs=512 seek=2648 conv=notrunc

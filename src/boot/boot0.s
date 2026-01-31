@@ -17,7 +17,7 @@ dap:
     dw 8
     dw 0x1000
     dw 0x0000
-    dq 1
+    dq 2048
 
 start:
     cli ; Disable Interrupts
@@ -40,12 +40,21 @@ segment_registers:
     mov dl, [drive_boot]
     int 0x13 ; reset drive
 
-    call get_floppy_info
+    mov ax, [drive_boot]
+    call print_int
+
+    mov al, ' '
+    mov ah, 0x0E
+    int 0x10
 
     ; find out if the BIOS is treating the (presumably) USB as HDD or FDD
     mov dl, [drive_boot]
     cmp dl, 0
     je read_boot1_floppy
+
+    mov dl, [drive_boot]
+    cmp dl, 0x80
+    je read_boot1_hdd
 
     mov dl, [drive_boot]
     cmp dl, 0x7F
@@ -56,41 +65,6 @@ segment_registers:
     jg read_boot1_floppy
 
     jmp halt
-
-get_floppy_info:
-    pusha
-
-    ; clear es:di
-    xor ax, ax
-    mov es, ax
-    xor di, di
-
-    mov ah, 0x08
-    mov dl, [drive_boot]
-    int 0x13
-
-    mov [FloppyInfoStruct.drive_count], dl
-
-    mov dl, dh
-    mov dh, 0
-
-    mov [FloppyInfoStruct.head_max], dl
-    inc dl
-    mov [FloppyInfoStruct.head_count], dl
-
-    mov al, cl
-    and al, 0x3F
-    mov [FloppyInfoStruct.sector_max], al
-
-    mov ax, cx
-    xchg al, ah
-    shr ah, 6
-
-    mov word [FloppyInfoStruct.cylinder_max], ax
-
-    popa
-
-    ret
 
 read_boot1_hdd:
     mov al, 'H'
@@ -129,9 +103,11 @@ read_boot1_floppy:
     mov ah, 0x0E
     int 0x10
 
-    mov [target_cylinder], 0
-    mov [target_head], 0
-    mov [target_sector], 2
+    ; this is practically LBA 2048 I hope
+
+    mov [target_cylinder], 1
+    mov [target_head], 1
+    mov [target_sector], 15
 
     mov dword [floppy_target_address], 0x1000
 
@@ -175,13 +151,6 @@ drive_fail:
     mov al, '0'
     mov ah, 0x0E
     int 0x10
-
-    mov al, ' '
-    mov ah, 0x0E
-    int 0x10
-
-    mov ax, [drive_boot]
-    call print_int
 
     mov al, ' '
     mov ah, 0x0E
@@ -276,7 +245,7 @@ Paritition_Table:
         db 0xFE              ; end head
         db 0xFF              ; end sector + high cyl bits
         db 0xFF              ; end cylinder
-        dd 0x00000000        ; starting LBA (after MBR)
+        dd 0x00000800        ; starting LBA
         dd 0x00000800        ; sectors (2048 sectors = 1MB)
     .user_partition:
         db 0x00              ; not bootable
@@ -287,7 +256,7 @@ Paritition_Table:
         db 0xFE
         db 0xFF
         db 0xFF
-        dd 0x00001000        ; start at sector 4096
+        dd 0x00001000        ; start at sector 2048 (some bioses want that)
         dd 0x00100000        ; size: pick something reasonable (example: 1M sectors)
     .partition_3:
         dq 0x00
