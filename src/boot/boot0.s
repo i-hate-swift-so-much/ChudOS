@@ -6,6 +6,9 @@ mov [drive_boot], dl
 mov al, '1'
 mov ah, 0x0E
 int 0x10
+mov al, ' '
+mov ah, 0x0E
+int 0x10
 
 align 16
 dap:
@@ -40,11 +43,25 @@ segment_registers:
     call get_floppy_info
 
     ; find out if the BIOS is treating the (presumably) USB as HDD or FDD
+    xor ax, ax
+    mov al, [drive_boot]
+    call print_int
     mov dl, [drive_boot]
-    cmp dl, 0x80
-    jl read_boot1_floppy
-    cmp dl, 0xFF
-    jl read_boot1_hdd
+    cmp dl, 0
+    je read_boot1_floppy
+
+    mov dl, [drive_boot]
+    cmp dl, 0x7F
+    jg read_boot1_hdd
+
+    mov dl, [drive_boot]
+    cmp dl, 0
+    jg read_boot1_floppy
+
+    mov ah, 'N'
+    mov al, 0x0E
+    int 0x10
+
     jmp halt
 
 ; set AX to the desired LBA, then the target C H and S will be set accordingly. must call get_floppy_info first
@@ -128,7 +145,7 @@ read_boot1_hdd:
 
     dec si
     jnz read_boot1_hdd.retry_hdd
-    jmp fail_hdd
+    jmp drive_fail
 
     .hdd_success:
         mov al, '1'
@@ -149,43 +166,8 @@ read_boot1_floppy:
 
     mov dword [floppy_target_address], 0x1000
 
-    mov [floppy_read_loop], 8 ; read 8 sectors
-
-    .loop:
-    mov al, [floppy_read_loop]
-    cmp al, 0
-    je read_boot1_floppy.loop_success
-
     mov si, 3 ; for each sector read, we can retry 3 times
     .retry:
-
-    mov al, [target_sector]
-    cmp al, [FloppyInfoStruct.sector_max]
-    jg read_boot1_floppy.over_sector
-    jmp read_boot1_floppy.valid_sector
-
-    .over_sector:
-        ; correct the sector count
-        mov al, [target_sector]
-        sub al, [FloppyInfoStruct.sector_max]
-        mov [target_sector], al
-
-        mov al, [target_head]
-        inc al
-        mov [target_head], al
-
-        cmp al, [FloppyInfoStruct.head_max]
-        jg read_boot1_floppy.over_head
-        jmp read_boot1_floppy.valid_sector
-
-    .over_head:
-        mov [target_head], 0
-
-        mov al, [target_cylinder]
-        inc al
-        mov [target_cylinder], al
-
-    .valid_sector:
 
     xor ax, ax
     mov ds, ax
@@ -203,45 +185,43 @@ read_boot1_floppy:
     mov es, ax
     xor bx, bx
     mov ah, 0x2
-    mov al, 1 ; sectors to read
+    mov al, 8 ; sectors to read
     int 0x13
-    jnc read_boot1_floppy.floppy_success
+    jnc read_boot1_floppy.success
+
+    mov [last_error_code], ah
 
     dec si
     jnz read_boot1_floppy.retry
-    jmp fail_floppy
+    jmp drive_fail
 
-    .floppy_success:
-        mov al, [target_sector]
-        add al, 1
-        mov [target_sector], al
-
-        mov al, [floppy_read_loop]
-        dec al
-        mov [floppy_read_loop], al
-
-        mov dword eax, [floppy_target_address]
-        add eax, 512
-        mov dword [floppy_target_address], eax
-
-        jmp read_boot1_floppy.loop
-    .loop_success:
+    .success:
         mov al, '1'
         mov ah, 0x0E
         int 0x10
 
         jmp 0x0000:0x1000
 
-fail_floppy:
+drive_fail:
     mov al, '0'
     mov ah, 0x0E
     int 0x10
-    jmp halt
 
-fail_hdd:
-    mov al, '0'
+    mov al, ' '
     mov ah, 0x0E
     int 0x10
+
+    mov ax, [drive_boot]
+    call print_int
+
+    mov al, ' '
+    mov ah, 0x0E
+    int 0x10
+
+    xor ax, ax
+    mov al, [last_error_code]
+    call print_int
+
     jmp halt
 
 halt:
@@ -280,6 +260,7 @@ target_sector: resb 1
 
 floppy_target_address: resb 4
 floppy_read_loop: resb 1
+last_error_code: resb 1
 
 FloppyInfoStruct:
     .drive_count: resb 1

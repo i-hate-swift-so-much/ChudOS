@@ -127,8 +127,6 @@ void int_to_char_array(int n, char* buffer, size_t buffer_size, int padding) {
     if (buffer_size < digits){
         return;
     }
-
-
         int lastI;
         // Extract digits from right to left and convert to ASCII characters
         if(negative){
