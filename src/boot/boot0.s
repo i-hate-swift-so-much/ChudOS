@@ -55,35 +55,7 @@ segment_registers:
     cmp dl, 0
     jg read_boot1_floppy
 
-    mov ah, 'N'
-    mov al, 0x0E
-    int 0x10
-
     jmp halt
-
-; set AX to the desired LBA, then the target C H and S will be set accordingly. must call get_floppy_info first
-calculate_LBA_to_CHS:
-    pusha
-    xor bx, bx
-    xor dx, dx
-    movzx bx, byte [FloppyInfoStruct.sector_max]
-    div bx
-
-    inc dx
-    mov [target_sector], dl
-
-    xor bx, bx
-    xor dx, dx
-    mov bl, [FloppyInfoStruct.head_count]
-
-    div bx
-
-    mov [target_head], dl
-    mov [target_cylinder], al
-
-    popa
-
-    ret
 
 get_floppy_info:
     pusha
@@ -157,9 +129,9 @@ read_boot1_floppy:
     mov ah, 0x0E
     int 0x10
 
-    ; starting LBA = 600
-    mov ax, 1
-    call calculate_LBA_to_CHS
+    mov [target_cylinder], 0
+    mov [target_head], 0
+    mov [target_sector], 2
 
     mov dword [floppy_target_address], 0x1000
 
