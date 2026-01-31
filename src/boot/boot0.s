@@ -138,7 +138,7 @@ read_boot1_hdd:
         jmp 0x0000:0x1000
 
 read_boot1_floppy:
-    mov al, 'H'
+    mov al, 'F'
     mov ah, 0x0E
     int 0x10
 
@@ -230,7 +230,7 @@ read_boot1_floppy:
         mov ah, 0x0E
         int 0x10
 
-        jmp 0x0100:0x0000
+        jmp 0x0000:0x1000
 
 fail_floppy:
     mov al, '0'

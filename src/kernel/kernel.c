@@ -1,18 +1,19 @@
-#include "std.h"
-#include "IDT.h"
-#include "PIC.h"
-#include "Keyboard.h"
-#include "VGA.h"
-#include "IO.h"
-#include "Power.h"
-#include "syscall.h"
-#include "Memory.h"
-#include "Timer.h"
-#include "KernelPanic.h"
-#include "Exceptions.h"
-#include "PCI.h"
-#include "AHCI.h"
-#include "GDT.h"
+#include "Libraries/std.h"
+#include "LowLevel/IDT.h"
+#include "Devices/PIC.h"
+#include "Devices/PS2/Keyboard.h"
+#include "Display/VGA.h"
+#include "Devices/IO.h"
+#include "LowLevel/Power.h"
+#include "Userland/syscall.h"
+#include "LowLevel/Memory.h"
+#include "LowLevel/Timer.h"
+#include "ErrorHandling/KernelPanic.h"
+#include "ErrorHandling/Exceptions.h"
+#include "Devices/PCI.h"
+#include "Devices/Disk/AHCI.h"
+#include "LowLevel/GDT.h"
+#include "Devices/Disk/Floppy.h"
 
 #ifndef VERSION_MAJOR
     #define VERSION_MAJOR 0
@@ -23,7 +24,11 @@
 #endif
 
 #ifndef VERSION_PATCH
-    #define VERSION_PATCH 1
+    #define VERSION_PATCH 0
+#endif
+
+#ifndef BUILD
+    #define BUILD 0
 #endif
 
 void kernel_startup(){
@@ -89,14 +94,27 @@ void kernel_startup(){
     PrintCycles();
 
     if(AHCI_Controller == NULL){ 
-        printf_error(" No drive detected\n", 0); 
+        printf_error(" No AHCI drive detected\n", 0); 
     }else{
-        printf(" Initializing Drive ", 0);
+        printf(" Initializing AHCI Drive ", 0);
         take_printf_snapshot();
         AHCI_Init(AHCI_Controller);
     }
 
-    printf_variable("ChudOS Version %i.%i.%i\n", VERSION_MAJOR, VERSION_MINOR, VERSION_PATCH);
+    FLOPPY_Check_FDC();
+
+    PrintCycles();
+
+    if(FLOPPY_FDC_Present == NULL){ 
+        printf_error(" No Floppy drive detected\n", 0); 
+    }else{
+        printf(" Initializing Floppy Drive ", 0);
+        take_printf_snapshot();
+        FLOPPY_Init_Drive(0);
+        int floppy_status = FLOPPY_Init_Controller();
+    }
+
+    printf_variable("ChudOS Version %i.%i.%i (%i)\n", VERSION_MAJOR, VERSION_MINOR, VERSION_PATCH, BUILD);
 
     while (1){
 

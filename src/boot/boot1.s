@@ -725,14 +725,6 @@ cur_col: resb 2
 
 lba_chs_arg: resb 2
 
-FloppyInfoStruct:
-    .drive_count: resb 1
-    .cylinder_max: resb 2
-    .head_max: resb 1
-    .sector_max: resb 1
-
-    .head_count: resb 1
-
 e820_cur_offset: resb 4
 
 vbe_cur_offset: resb 4
@@ -793,5 +785,12 @@ VBEModeInfoBlock:
     .OffscreenMemSize: resw 1
     .Reserved2: resb 206
 
+times 4090-($-$$) db 0
+; struct should be at physical 0x1FFA with a size of 6 bytes
+FloppyInfoStruct:
+    .drive_count: resb 1
+    .cylinder_max: resb 2
+    .head_max: resb 1
+    .sector_max: resb 1
 
-times 4096-($-$$) db 0
+    .head_count: resb 1

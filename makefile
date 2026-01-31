@@ -1,8 +1,10 @@
 .PHONY: clean debug all
 
-BUILD_MAJOR ?= 0
-BUILD_MINOR ?= 0
-BUILD_PATCH ?= 1
+VERSION_MAJOR ?= 0
+VERSION_MINOR ?= 0
+VERSION_PATCH ?= 1
+
+BUILD ?= 0
 
 as = nasm
 ld = x86_64-elf-ld
@@ -31,15 +33,15 @@ kernel_flat := obj/kernel.bin
 kernel_entry_src := src/kernel/kernel_entry.s
 kernel_entry_obj := obj/kernel_entry.o
 
-drivers_src := src/kernel/drivers/VGA.c src/kernel/lib/std.c src/kernel/drivers/IDT.c src/kernel/drivers/Keyborad.c src/kernel/drivers/PIC.c src/kernel/drivers/syscall.c src/kernel/drivers/interrupt_stubs.s src/kernel/drivers/Math.c src/kernel/drivers/Memory.c src/kernel/drivers/KernelPanic.c src/kernel/drivers/Power.c src/kernel/drivers/Exceptions.c src/kernel/drivers/Timer.c src/kernel/drivers/AHCI.c src/kernel/drivers/Tasks.c src/kernel/drivers/PCI.c src/kernel/drivers/GDT.c src/kernel/VGA_E.c
-drivers_obj := obj/VGA.elf obj/std.elf obj/Keyboard.elf obj/IDT.elf obj/PIC.elf obj/syscall.elf obj/interrupt_stubs.elf obj/Math.elf obj/Memory.elf obj/KernelPanic.elf obj/Power.elf obj/Exceptions.elf obj/Timer.elf obj/AHCI.elf obj/Tasks.elf obj/PCI.elf obj/GDT.elf obj/VGA_E.elf
+drivers_src := src/kernel/drivers/Display/VGA.c src/kernel/Libraries/std.c src/kernel/drivers/LowLevel/IDT.c src/kernel/drivers/Devices/PS2/Keyborad.c src/kernel/drivers/Devices/PIC.c src/kernel/drivers/Userland/syscall.c src/kernel/drivers/LowLevel/interrupt_stubs.s src/kernel/Libraries/Math.c src/kernel/drivers/LowLevel/Memory.c src/kernel/drivers/ErrorHandling/KernelPanic.c src/kernel/drivers/LowLevel/Power.c src/kernel/drivers/ErrorHandling/Exceptions.c src/kernel/drivers/LowLevel/Timer.c src/kernel/drivers/Devices/Disk/AHCI.c src/kernel/drivers/Userland/Tasks.c src/kernel/drivers/PCI.c src/kernel/drivers/LowLevel/GDT.c src/kernel/Display/VGA_E.c src/kernel/drivers/Devices/Disk/Floppy
+drivers_obj := obj/VGA.elf obj/std.elf obj/Keyboard.elf obj/IDT.elf obj/PIC.elf obj/syscall.elf obj/interrupt_stubs.elf obj/Math.elf obj/Memory.elf obj/KernelPanic.elf obj/Power.elf obj/Exceptions.elf obj/Timer.elf obj/AHCI.elf obj/Tasks.elf obj/PCI.elf obj/GDT.elf obj/VGA_E.elf obj/Floppy.elf
 drivers_flat := obj/drivers.bin
 
 all: clean build_boot boot_bin build_kernel link_kernel
 ifneq ($(filter debug,$(MAKECMDGOALS)),)
-    cflags += -DDEBUG -DVERSION_MAJOR=$(BUILD_MAJOR) -DVERSION_MINOR=$(BUILD_MINOR) -DVERSION_PATCH=$(BUILD_PATCH)
+    cflags += -DDEBUG -DVERSION_MAJOR=$(VERSION_MAJOR) -DVERSION_MINOR=$(VERSION_MINOR) -DVERSION_PATCH=$(VERSION_PATCH) -DBUILD=$(BUILD)
 else
-	cflags += -DVERSION_MAJOR=$(BUILD_MAJOR) -DVERSION_MINOR=$(BUILD_MINOR) -DVERSION_PATCH=$(BUILD_PATCH)
+	cflags += -DVERSION_MAJOR=$(VERSION_MAJOR) -DVERSION_MINOR=$(VERSION_MINOR) -DVERSION_PATCH=$(VERSION_PATCH) -DBUILD=$(BUILD)
 endif
 
 clean:
@@ -63,24 +65,25 @@ build_kernel ${kernel_src} ${drivers_src} ${kernel_entry_src}:
 
 	${c} ${kernel_src} ${cflags} -o ${kernel_obj}
 	${as} ${entryasflags} ${kernel_entry_src} -o ${kernel_entry_obj}
-	${c} src/kernel/drivers/VGA.c ${cflags} -o obj/VGA.elf
-	${c} src/kernel/lib/std.c ${cflags} -o obj/std.elf
-	${c} src/kernel/drivers/IDT.c ${cflags} -o obj/IDT.elf
-	${c} src/kernel/drivers/Keyboard.c -mgeneral-regs-only ${cflags} -o obj/Keyboard.elf
-	${c} src/kernel/drivers/PIC.c ${cflags} -o obj/PIC.elf
-	${c} src/kernel/drivers/syscall.c ${cflags} -mgeneral-regs-only -o obj/syscall.elf
-	${c} src/kernel/drivers/interrupt_stubs.s ${cflags} -mgeneral-regs-only -o obj/interrupt_stubs.elf
-	${c} src/kernel/drivers/Math.c ${cflags} -o obj/Math.elf
-	${c} src/kernel/drivers/Memory.c ${cflags} -o obj/Memory.elf
-	${c} src/kernel/drivers/Power.c ${cflags} -o obj/Power.elf
-	${c} src/kernel/drivers/KernelPanic.c ${cflags} -o obj/KernelPanic.elf
-	${c} src/kernel/drivers/Exceptions.c ${cflags} -o obj/Exceptions.elf
-	${c} src/kernel/drivers/Timer.c ${cflags} -o obj/Timer.elf
-	${c} src/kernel/drivers/AHCI.c ${cflags} -o obj/AHCI.elf
-	${c} src/kernel/drivers/Tasks.c ${cflags} -o obj/Tasks.elf
-	${c} src/kernel/drivers/PCI.c ${cflags} -o obj/PCI.elf
-	${c} src/kernel/drivers/GDT.c ${cflags} -o obj/GDT.elf
-	${c} src/kernel/drivers/VGA_E.c ${cflags} -o obj/VGA_E.elf
+	${c} src/kernel/drivers/Display/VGA.c ${cflags} -o obj/VGA.elf
+	${c} src/kernel/Libraries/std.c ${cflags} -o obj/std.elf
+	${c} src/kernel/drivers/LowLevel/IDT.c ${cflags} -o obj/IDT.elf
+	${c} src/kernel/drivers/Devices/PS2/Keyboard.c -mgeneral-regs-only ${cflags} -o obj/Keyboard.elf
+	${c} src/kernel/drivers/Devices/PIC.c ${cflags} -o obj/PIC.elf
+	${c} src/kernel/drivers/Userland/syscall.c ${cflags} -mgeneral-regs-only -o obj/syscall.elf
+	${c} src/kernel/drivers/LowLevel/interrupt_stubs.s ${cflags} -mgeneral-regs-only -o obj/interrupt_stubs.elf
+	${c} src/kernel/Libraries/Math.c ${cflags} -o obj/Math.elf
+	${c} src/kernel/drivers/LowLevel/Memory.c ${cflags} -o obj/Memory.elf
+	${c} src/kernel/drivers/LowLevel/Power.c ${cflags} -o obj/Power.elf
+	${c} src/kernel/drivers/ErrorHandling/KernelPanic.c ${cflags} -o obj/KernelPanic.elf
+	${c} src/kernel/drivers/ErrorHandling/Exceptions.c ${cflags} -o obj/Exceptions.elf
+	${c} src/kernel/drivers/LowLevel/Timer.c ${cflags} -o obj/Timer.elf
+	${c} src/kernel/drivers/Devices/Disk/AHCI.c ${cflags} -o obj/AHCI.elf
+	${c} src/kernel/drivers/Userland/Tasks.c ${cflags} -o obj/Tasks.elf
+	${c} src/kernel/drivers/Devices/PCI.c ${cflags} -o obj/PCI.elf
+	${c} src/kernel/drivers/LowLevel/GDT.c ${cflags} -o obj/GDT.elf
+	${c} src/kernel/drivers/Display/VGA_E.c ${cflags} -o obj/VGA_E.elf
+	${c} src/kernel/drivers/Devices/Disk/Floppy.c ${cflags} -o obj/Floppy.elf
 
 link_kernel ${kernel_obj} ${drivers_obj}:
 	${ld} -TkernelSetup64.ld -o obj/kernel_setup.elf obj/kernel_setup_entry.o obj/kernel_setup.o
