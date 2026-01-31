@@ -43,9 +43,6 @@ segment_registers:
     call get_floppy_info
 
     ; find out if the BIOS is treating the (presumably) USB as HDD or FDD
-    xor ax, ax
-    mov al, [drive_boot]
-    call print_int
     mov dl, [drive_boot]
     cmp dl, 0
     je read_boot1_floppy
@@ -220,6 +217,30 @@ drive_fail:
 
     xor ax, ax
     mov al, [last_error_code]
+    call print_int
+
+    mov al, ' '
+    mov ah, 0x0E
+    int 0x10
+
+    xor ax, ax
+    mov al, [target_cylinder]
+    call print_int
+
+    mov al, ':'
+    mov ah, 0x0E
+    int 0x10
+
+    xor ax, ax
+    mov al, [target_head]
+    call print_int
+
+    mov al, ':'
+    mov ah, 0x0E
+    int 0x10
+
+    xor ax, ax
+    mov al, [target_sector]
     call print_int
 
     jmp halt
