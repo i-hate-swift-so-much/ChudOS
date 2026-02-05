@@ -155,7 +155,7 @@ void mem_bitmap_dump(uint16_t PT);
 
 void* find_free_pdpt();
 
-void* find_free_pml4();
+void* find_free_pml4();;
 
 PageEntries FindNextFreePhysical();
 

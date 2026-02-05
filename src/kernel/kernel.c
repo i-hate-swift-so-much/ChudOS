@@ -31,25 +31,29 @@
     #define BUILD 0
 #endif
 
+#ifndef BUILD_CLASS
+    #define BUILD_CLASS 'b'
+#endif
+
 void kernel_startup(){
     cls();
 
     PrintCycles();
-    printf(" Enumerating Memory ", 0);
-    take_printf_snapshot();
+    print(" Enumerating Memory ", 0);
+    take_print_snapshot();
 
     Enumerate_E820();
 
-    printf_success_snapshot("SUCCESS\n", 0);
+    print_success_snapshot("SUCCESS\n", 0);
     PrintCycles();
-    printf(" Loading IDT ", 0);
-    take_printf_snapshot();
+    print(" Loading IDT ", 0);
+    take_print_snapshot();
     pic_remap(0x20, 0x28);
     for(int i = 0; i < 256; i++){
         SetIDTEntry(i, (uint64_t)kernel_panic_stub, 0x08, 0x8E, 0x04);
     }
     #ifdef DEBUG
-        printf_debug("\nINDEX SELECTOR FLAGS IST\n", 0);
+        print_debug("\nINDEX SELECTOR FLAGS IST\n", 0);
     #endif
     SetIDTEntry(0x06, (uint64_t)invalid_opcode_stub, 0x08, 0x8F, 0x04);
     SetIDTEntry(0x0D, (uint64_t)gpf_stub, 0x08, 0x8F, 0x04);
@@ -66,15 +70,15 @@ void kernel_startup(){
     pic_unmask(0x08); // for syncing time
     SetIDTEntry(0x21, (uint64_t)keyboard_stub, 0x08, 0x8E, 0x00);
     pic_unmask(0x01); // Keyboard
-    printf_success_snapshot("SUCCESS\n", 0);
+    print_success_snapshot("SUCCESS\n", 0);
     PrintCycles();
-    printf(" Enabling Interrupts ", 0);
-    take_printf_snapshot();
+    print(" Enabling Interrupts ", 0);
+    take_print_snapshot();
     asm volatile("sti");
-    printf_success_snapshot("SUCCESS\n", 0);
+    print_success_snapshot("SUCCESS\n", 0);
     PrintCycles();
-    printf(" Setting up paging ", 0);
-    take_printf_snapshot();
+    print(" Setting up paging ", 0);
+    take_print_snapshot();
 
     InitMem();
 
@@ -83,21 +87,21 @@ void kernel_startup(){
     // made for testing paging
     *test_alloc = (uint64_t)0xFFULL;
     uint64_t test_read = *test_alloc;
-    printf_success_snapshot("SUCCESS\n", 0);
+    print_success_snapshot("SUCCESS\n", 0);
 
     PrintCycles();
-    printf(" Scanning Busses ", 0);
-    take_printf_snapshot();
+    print(" Scanning Busses ", 0);
+    take_print_snapshot();
     ScanBusses();
-    printf_success_snapshot("SUCCESS\n", 0);
+    print_success_snapshot("SUCCESS\n", 0);
 
     PrintCycles();
 
     if(AHCI_Controller == NULL){ 
-        printf_error(" No AHCI drive detected\n", 0); 
+        print_error(" No AHCI drive detected\n", 0); 
     }else{
-        printf(" Initializing AHCI Drive ", 0);
-        take_printf_snapshot();
+        print(" Initializing AHCI Drive ", 0);
+        take_print_snapshot();
         AHCI_Init(AHCI_Controller);
     }
 
@@ -106,15 +110,18 @@ void kernel_startup(){
     PrintCycles();
 
     if(FLOPPY_FDC_Present == NULL){ 
-        printf_error(" No Floppy drive detected\n", 0); 
+        print_error(" No Floppy drive detected\n", 0); 
     }else{
-        printf(" Initializing Floppy Drive ", 0);
-        take_printf_snapshot();
-        FLOPPY_Init_Drive(0);
+        print(" Initializing Floppy Drive Controller ", 0);
+        take_print_snapshot();
         int floppy_status = FLOPPY_Init_Controller();
+        PrintCycles();
+        print(" Initializing Floppy Drive 0 ", 0);
+        take_print_snapshot();
+        FLOPPY_Init_Drive(0);
     }
 
-    printf_variable("ChudOS Version %i.%i.%i (%i)\n", VERSION_MAJOR, VERSION_MINOR, VERSION_PATCH, BUILD);
+    printf("ChudOS Version %i.%i.%i:%i%c\n", VERSION_MAJOR, VERSION_MINOR, VERSION_PATCH, BUILD, BUILD_CLASS);
 
     while (1){
 

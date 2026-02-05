@@ -6,10 +6,6 @@ mov [drive_boot], dl
 mov al, '1'
 mov ah, 0x0E
 int 0x10
-mov al, ' '
-mov ah, 0x0E
-int 0x10
-
 align 16
 dap:
     db 0x10
@@ -36,16 +32,18 @@ segment_registers:
     mov cx, 0x2607
     int 0x10 ; hide cursor
 
-    mov ah, 0x00
-    mov dl, [drive_boot]
-    int 0x13 ; reset drive
-
     mov ax, [drive_boot]
     call print_int
 
     mov al, ' '
     mov ah, 0x0E
     int 0x10
+
+    mov ah, 0x00
+    mov dl, [drive_boot]
+    int 0x13 ; reset drive
+
+    call get_floppy_info
 
     ; find out if the BIOS is treating the (presumably) USB as HDD or FDD
     mov dl, [drive_boot]
@@ -65,6 +63,62 @@ segment_registers:
     jg read_boot1_floppy
 
     jmp halt
+
+get_floppy_info:
+    ; NOTE
+    ; BIOS int 13h ah=08h returns the following values
+
+    ; DL = Amount of hard drives
+    ; DH = Last INDEX of heads
+    ; CX = Last INDEX of cylinder and COUNT of sectors (see mapping below)
+    ; BL = Drive Type (irrelevant)
+    ; ES:DI = DECREPITATED (both must be 0)
+
+    ; the weird CX mapping:
+
+    ; 15                 8 7        6 5          0
+    ; +-------------------+----------+-----------+
+    ; |                   |          |           |
+    ; |     CYL_LOWER     | CYL_UPPER|  SECTORS  |
+    ; |                   |          |           |
+    ; +-------------------+----------+-----------+
+    ; CH                  CL
+
+    ; CYL_LOWER is the lower byte of the max cylinder index, upper is the upper 2 bits.
+    ; sector is pretty obvious, but it's the sector count
+
+    pusha
+
+    ; clear es:di
+    xor ax, ax
+    mov es, ax
+    xor di, di
+
+    mov ah, 0x08
+    mov dl, [drive_boot]
+    int 0x13
+    jc drive_fail
+
+    mov [FloppyInfoStruct.drive_count], dl
+
+    mov [FloppyInfoStruct.head_max], dh
+    inc dh
+    mov [FloppyInfoStruct.head_count], dh
+
+    mov al, cl
+    and al, 0x3F ; mask sector bits (0b00111111)
+    mov [FloppyInfoStruct.sector_max], al
+
+    ; yayyyy cx math
+    mov ax, cx
+    xchg al, ah ; swap the lower and upper bits
+    shr ah, 6 ; discard of the 6 bits leftover by the cylinder
+
+    mov word [FloppyInfoStruct.cylinder_max], ax
+
+    popa
+
+    ret
 
 read_boot1_hdd:
     mov al, 'H'
@@ -222,6 +276,8 @@ floppy_target_address: resb 4
 floppy_read_loop: resb 1
 last_error_code: resb 1
 
+times 440-($-$$) db 0
+; address 0x7DB8
 FloppyInfoStruct:
     .drive_count: resb 1
     .cylinder_max: resb 2
@@ -236,9 +292,9 @@ times 446-($-$$) db 0
 Paritition_Table:
     .mbr_partition:
         db 0x80              ; bootable
-        db 0xFE              ; start head
-        db 0xFF              ; start sector + high cyl bits
-        db 0xFF              ; start cylinder
+        db 0x00              ; start head
+        db 63              ; start sector + high cyl bits
+        db 0x00              ; start cylinder
         db 0x83              ; partition type
         db 0xFE              ; end head
         db 0xFF              ; end sector + high cyl bits
@@ -250,7 +306,7 @@ Paritition_Table:
         db 0xFE
         db 0xFF
         db 0xFF
-        db 0x83              ; custom partition type
+        db 0x83              ; partition type
         db 0xFE
         db 0xFF
         db 0xFF

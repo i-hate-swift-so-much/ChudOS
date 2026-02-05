@@ -80,20 +80,20 @@ void PCI_PrintCommonHeader(PCI_Common_Header header){
     char BIST[10];
     int_to_char_array_hex(header.BIST, BIST, sizeof(BIST), 0);
 
-    printf("VendorID:        ",0); printf(VendorID, 0); printf("\n", 0);
-    printf("DeviceID:        ",0); printf(DeviceID, 0); printf("\n", 0);
-    printf("Command:         ",0); printf(Command, 0); printf("\n", 0);
-    printf("Status:          ",0); printf(Status, 0); printf("\n", 0);
+    print("VendorID:        ",0); print(VendorID, 0); print("\n", 0);
+    print("DeviceID:        ",0); print(DeviceID, 0); print("\n", 0);
+    print("Command:         ",0); print(Command, 0); print("\n", 0);
+    print("Status:          ",0); print(Status, 0); print("\n", 0);
 
-    printf("RevisionID:      ",0); printf(RevisionID, 0); printf("\n", 0);
-    printf("ProgIF:          ",0); printf(ProgIF, 0); printf("\n", 0);
-    printf("SubClass:        ",0); printf(SubClass, 0); printf("\n", 0);
-    printf("ClassCode:       ",0); printf(ClassCode, 0); printf("\n", 0);
+    print("RevisionID:      ",0); print(RevisionID, 0); print("\n", 0);
+    print("ProgIF:          ",0); print(ProgIF, 0); print("\n", 0);
+    print("SubClass:        ",0); print(SubClass, 0); print("\n", 0);
+    print("ClassCode:       ",0); print(ClassCode, 0); print("\n", 0);
     
-    printf("CacheLineSize:   ",0); printf(CacheLineSize, 0); printf("\n", 0);
-    printf("LatencyTimer:    ",0); printf(LatencyTimer, 0); printf("\n", 0);
-    printf("HeaderType:      ",0); printf(HeaderType, 0); printf("\n", 0);
-    printf("BIST:            ",0); printf(BIST, 0); printf("\n", 0);
+    print("CacheLineSize:   ",0); print(CacheLineSize, 0); print("\n", 0);
+    print("LatencyTimer:    ",0); print(LatencyTimer, 0); print("\n", 0);
+    print("HeaderType:      ",0); print(HeaderType, 0); print("\n", 0);
+    print("BIST:            ",0); print(BIST, 0); print("\n", 0);
 }
 
 PCI_Common_Header PCI_ReadCommonHeader(uint8_t bus, uint8_t slot){
@@ -143,7 +143,7 @@ PCI_Header_0x1 PCI_ReadHeader1(PCI_Common_Header common, uint8_t bus, uint8_t sl
 
 void ScanBusses(){
     #ifdef DEBUG
-        printf_debug("\nVendID DevcID\tCLASS   SUBCLASS   ProgIF\n", 0);
+        print_debug("\nVendID DevcID\tCLASS   SUBCLASS   ProgIF\n", 0);
     #endif
 
     uint8_t ClassCode;
@@ -191,21 +191,21 @@ void ScanBusses(){
             #ifdef DEBUG
                 char test_char[22];
                 int_to_char_array_hex(curHeader.VendorID, test_char, sizeof(test_char), 4);
-                printf_debug(test_char, 0);
-                printf(":", 0);
+                print_debug(test_char, 0);
+                print(":", 0);
                 int_to_char_array_hex(curHeader.DeviceID, test_char, sizeof(test_char), 4);
-                printf_debug(test_char, 0);
-                printf("\t", 0);
+                print_debug(test_char, 0);
+                print("\t", 0);
 
                 int_to_char_array_hex(curHeader.ClassCode, test_char, sizeof(test_char), 5);
-                printf_debug(test_char, 0);
-                printf(":", 0);
+                print_debug(test_char, 0);
+                print(":", 0);
                 int_to_char_array_hex(curHeader.SubClass, test_char, sizeof(test_char), 8);
-                printf_debug(test_char, 0);
-                printf(":", 0);
+                print_debug(test_char, 0);
+                print(":", 0);
                 int_to_char_array_hex(curHeader.ProgIF, test_char, sizeof(test_char), 4);
-                printf_debug(test_char, 0);
-                printf("\n", 0);
+                print_debug(test_char, 0);
+                print("\n", 0);
             #endif
 
             if(curHeader.ClassCode == PCI_CLASS_STR && curHeader.SubClass == 0x06 && curHeader.ProgIF == 0x01){
@@ -220,10 +220,10 @@ void ScanBusses(){
 
     #ifdef DEBUG
         char test_char[22];
-        printf_debug("Detected ", 0);
+        print_debug("Detected ", 0);
         int_to_char_array(device_count, test_char, sizeof(test_char), 0);
-        printf_debug(test_char, 0);
-        printf_debug(" devices.\n", 0);
+        print_debug(test_char, 0);
+        print_debug(" devices.\n", 0);
     #endif
 } 
 

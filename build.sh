@@ -6,6 +6,7 @@ version_minor="1"
 version_major="0"
 
 build_count_file="build.txt"
+build_type="a"
 
 args=""
 
@@ -35,7 +36,7 @@ for arg in "$@"; do
     elif [[ "$arg" == "debug" || "$arg" == "-d" && $debug_flag_set == 0 ]]; then
         args+=" debug"
         debug_flag_set=1
-    elif [[ "$arg" == "run" || "$arg" == "-r" ]]; then
+    elif [[ "$arg" == "run-qemu" || "$arg" == "-rq" ]]; then
         run_with_qemu=1
     elif [[ "$arg" == "run-legacy" || "$arg" == "-rl" ]]; then
         run_with_qemu_legacy_drivers=1
@@ -46,15 +47,27 @@ if [[ $has_all -eq 0 ]]; then
     args+=" all"
 fi
 
-make $args VERSION_MAJOR=$version_major VERSION_MINOR=$version_minor VERSION_PATCH=$version_patch BUILD=$new_build_count
+make $args VERSION_MAJOR=$version_major VERSION_MINOR=$version_minor VERSION_PATCH=$version_patch BUILD=$new_build_count BUILD_TYPE=$build_type
 
-echo "Built ChudOS v${version_major}.${version_minor}.${version_patch} Build ${new_build_count} with arguments$args"
+echo "Built ChudOS v${version_major}.${version_minor}.${version_patch}:${new_build_count}${build_type} with arguments$args"
 echo "$(date)"
 
 if [[ $run_with_qemu_legacy_drivers == 1 ]]; then
-    qemu-system-x86_64 -fda bin/ChudOS.img -boot a,strict=on -no-reboot -no-shutdown -d int,in_asm -D qemu.log -monitor stdio -device VGA,vgamem_mb=3 -machine q35 -m 1G -mem-path ./bin/junk_mem.bin
+    qemu-system-x86_64 -fda bin/ChudOS.img \
+        -boot a,strict=on \
+        -no-reboot -no-shutdown -d int,in_asm -D qemu.log -monitor stdio \
+        -device VGA,vgamem_mb=3 \
+        -machine q35 \
+        -m 2G
+    exit 0
 fi
 
 if [[ $run_with_qemu == 1 ]]; then
-    qemu-system-x86_64 -drive format=raw,file=bin/ChudOS.img,id=disk,if=none -device ahci,id=ahci -device ide-hd,drive=disk,bus=ahci.0 -boot c,strict=on -no-reboot -no-shutdown -d int,in_asm -D qemu.log -monitor stdio -device VGA,vgamem_mb=3 -machine q35 -m 1G -mem-path ./bin/junk_mem.bin
+    qemu-system-x86_64 -drive format=raw,file=bin/ChudOS.img,id=disk,if=none -device ahci,id=ahci -device ide-hd,drive=disk,bus=ahci.0 \
+        -boot c,strict=on \
+        -no-reboot -no-shutdown -d int,in_asm -D qemu.log -monitor stdio \
+        -device VGA,vgamem_mb=3 \
+        -machine q35 \
+        -m 2G
+    exit 0
 fi

@@ -175,6 +175,30 @@ get_floppy_info:
 
     ret
 
+; AX should be the number to print
+print_int:
+    mov cx, 0
+    mov bx, 10
+
+    .divide_loop:
+        xor dx, dx
+        div bx
+        push dx ; the remainder
+        inc cx
+        cmp ax, 0
+        jne .divide_loop
+
+    .print_loop:
+        pop ax
+        add al, '0'
+        mov ah, 0x0E
+        int 0x10
+        dec cx
+        cmp cx, 0
+        jne .print_loop
+
+    ret
+
 load_kernel_setup_floppy:
     ; starting LBA = 2648
     mov ax, 2648
@@ -687,9 +711,6 @@ start_protected:
     ;jmp halt32
 
     jmp 0x60000 ; go to boot2
-
-
-    
 
 halt32:
     hlt

@@ -17,7 +17,7 @@ int curY = 0;
 int snapshotX = 0;
 int snapshotY = 0;
 
-void printf(const char* toPrint, int length){
+void print(const char* toPrint, int length){
         if(length == 0 || length == NULL){ length = calculate_string_length(toPrint); }
         for (int i = 0; i < length; i++){
             if(curX > 79){ curX = 0; curY++; }
@@ -340,11 +340,11 @@ void setCursor(int x, int y){
         curX = x;
         curY = y;
     }
-void printf_centered(const char* toPrint, int length){
+void print_centered(const char* toPrint, int length){
         if(length == 0){ length = calculate_string_length(toPrint); }
         int offset = (79 - length) / 2;
         setCursor(offset, curY);
-        printf(toPrint, length);
+        print(toPrint, length);
     }
 void NewLine(){
     if(curY == 24){
@@ -356,23 +356,23 @@ void NewLine(){
         curY++;
     }
 }
-void printf_debug(const char* toPrint, int length){
+void print_debug(const char* toPrint, int length){
     SetTextColor(LCYAN, BLACK);
-    printf(toPrint, length);
+    print(toPrint, length);
     SetTextColor(WHITE, BLACK);
 }
-void printf_error(const char* toPrint, int length){
+void print_error(const char* toPrint, int length){
     SetTextColor(LRED, BLACK);
-    printf(toPrint, length);
+    print(toPrint, length);
     SetTextColor(WHITE, BLACK);
 }
-void take_printf_snapshot(){
+void take_print_snapshot(){
     snapshotX = curX;
     snapshotY = curY;
 }
-void printf_snapshot(const char* toPrint, int length){
+void print_snapshot(const char* toPrint, int length){
     if(snapshotX == curX || snapshotY == curY){
-        printf(toPrint, length);
+        print(toPrint, length);
         return;
     }
     
@@ -380,28 +380,28 @@ void printf_snapshot(const char* toPrint, int length){
     int tempY = curY;
     curX = snapshotX;
     curY = snapshotY;
-    printf(toPrint, length);
+    print(toPrint, length);
     curX = tempX;
     curY = tempY;
 }
-void printf_success(const char* toPrint, int length){
+void print_success(const char* toPrint, int length){
     SetTextColor(LGREEN, BLACK);
-    printf(toPrint, length);
+    print(toPrint, length);
     SetTextColor(WHITE, BLACK);
 }
-void printf_debug_snapshot(const char* toPrint, int length){
+void print_debug_snapshot(const char* toPrint, int length){
     SetTextColor(LCYAN, BLACK);
-    printf_snapshot(toPrint, length);
+    print_snapshot(toPrint, length);
     SetTextColor(WHITE, BLACK);
 }
-void printf_error_snapshot(const char* toPrint, int length){
+void print_error_snapshot(const char* toPrint, int length){
     SetTextColor(LRED, BLACK);
-    printf_snapshot(toPrint, length);
+    print_snapshot(toPrint, length);
     SetTextColor(WHITE, BLACK);
 }
-void printf_success_snapshot(const char* toPrint, int length){
+void print_success_snapshot(const char* toPrint, int length){
     SetTextColor(LGREEN, BLACK);
-    printf_snapshot(toPrint, length);
+    print_snapshot(toPrint, length);
     SetTextColor(WHITE, BLACK);
 }
 // Gets input index of a string passed into printf, returns a PRINTF_TYPE (see lines 6-13)
@@ -458,6 +458,7 @@ int printf_scan_length(const char* toScan, int length){
 // prints starting at an index until the next argument, returns its final index
 int printf_print_from(const char* toPrint, int length, int start){    
     int ret;
+    int loop = 0;
     
     for(int i = start; i < length; i++){
         if(toPrint[i] == '%' && toPrint[i+1] != '%'&& toPrint[i-1] != '%'){
@@ -466,9 +467,11 @@ int printf_print_from(const char* toPrint, int length, int start){
             ret = i;
             break;
         }
+        loop++;
     }
+    if(loop == 0){ return ret; }
 
-    printf(toPrint+start, length-start);
+    print(toPrint+start, length-start);
 
     return ret;
 }
@@ -477,11 +480,11 @@ int get_string_length(const char* str){
     while(str[cur] != '\0'){ cur++; }
     return cur;
 }
-void printf_variable(const char* toPrint, ...){
+void printf(const char* toPrint, ...){
     size_t length = get_string_length(toPrint);
     int args_length = printf_scan_length(toPrint, length);
 
-    if(args_length == 0){printf(toPrint, 0); return;}
+    if(args_length == 0){print(toPrint, 0); return;}
 
     va_list args;
     va_start(args, toPrint+length+1);
@@ -499,15 +502,19 @@ void printf_variable(const char* toPrint, ...){
                 break;
             case PRINTF_TYPE_INT:
                 int_to_char_array(va_arg(args, int), variable_print, sizeof(variable_print), 0);
-                printf(variable_print, 0);
+                print(variable_print, 0);
                 break;
             case PRINTF_TYPE_HEX:
                 int_to_char_array_hex(va_arg(args, int), variable_print, sizeof(variable_print), 0);
-                printf(variable_print, 0);
+                print(variable_print, 0);
                 break;
             case PRINTF_TYPE_BIN:
                 int_to_char_array_binary(va_arg(args, int), variable_print, sizeof(variable_print), 0);
-                printf(variable_print, 0);
+                print(variable_print, 0);
+                break;
+            case PRINTF_TYPE_CHAR:
+                char cs[2] = {va_arg(args, int), '\0'};
+                print(cs, 0);
                 break;
             default:
                 break;

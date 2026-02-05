@@ -28,19 +28,19 @@ DateData ParseSeconds(uint64_t time){
 }
 
 void PrintCycles(){
-    printf("[", 0);
+    print("[", 0);
     char cycles[36];
     int_to_char_array(TimerWindow, cycles, sizeof(cycles), 10);
-    printf(cycles, 0);
-    printf("]", 0);
+    print(cycles, 0);
+    print("]", 0);
 }
 
 void PrintSecondsSinceBoot(){
-    printf("[", 0);
+    print("[", 0);
     char cycles[36];
     int_to_char_array(SecondsSinceBoot, cycles, sizeof(cycles), 10);
-    printf(cycles, 0);
-    printf("]", 0);
+    print(cycles, 0);
+    print("]", 0);
 }
 
 void TimerInterrupt(InterruptRegisters* frame){    

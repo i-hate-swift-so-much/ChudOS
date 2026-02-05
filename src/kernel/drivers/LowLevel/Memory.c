@@ -142,7 +142,7 @@ void* alloc_page(PageDetails page){
         // the physical address of the page entry we want to set
         uint64_t* Page_Entry = CalculatePagePhysicalEntryAddress(&Deconstructed);
         
-        if(Page_Entry == NULL){ printf("No page entry\n", 0); return NULL; }
+        if(Page_Entry == NULL){ print("No page entry\n", 0); return NULL; }
 
         uint64_t new_entry = 
             (page.physical_address) |
@@ -156,7 +156,7 @@ void* alloc_page(PageDetails page){
 
         asm volatile("invlpg (%0)" :: "r"((uintptr_t)(page.virtual_address)) : "memory");
     }else{
-        printf("Page unavailable\n", 0);
+        print("Page unavailable\n", 0);
         return (void*)(page.virtual_address);
     }
 
@@ -350,7 +350,7 @@ void* find_free_pdpt(){
         pdpt++;
         if(pdpt == 512){ pdpt = 0; pml4++; }
     }
-    if(pml4 >= 512){ printf("Out of memory!\n", 0); return NULL;}
+    if(pml4 >= 512){ print("Out of memory!\n", 0); return NULL;}
 }
 
 void mem_bitmap_dump(uint16_t PT){
@@ -405,7 +405,7 @@ void* create_pd(){
     uint64_t* free_pdpt;
 
     free_pdpt = (uint64_t*)find_free_pdpt();
-    if(free_pdpt == NULL){ printf("Out of virtual memory!\n", 0); return NULL; }
+    if(free_pdpt == NULL){ print("Out of virtual memory!\n", 0); return NULL; }
 
     new_page_directory =  (uint64_t*)malloc(&KernelTask);
 
@@ -433,7 +433,7 @@ void* create_pdpt(){
 
 void PrintMemorySize(size_t bytes){
     if(bytes == 0){ 
-        printf("0 Byte(s)", 0);
+        print("0 Byte(s)", 0);
     }
     
     uint64_t kib = bytes / 0x400; // kibibyte count
@@ -444,39 +444,39 @@ void PrintMemorySize(size_t bytes){
 
     if(gib){
         int_to_char_array(gib, print, sizeof(print), 0);
-        printf_debug(print, 0);
-        printf_debug(" GiB(s)", 0);
+        print_debug(print, 0);
+        print_debug(" GiB(s)", 0);
     }else if(mib){
         int_to_char_array(mib, print, sizeof(print), 0);
-        printf_debug(print, 0);
-        printf_debug(" MiB(s)", 0);
+        print_debug(print, 0);
+        print_debug(" MiB(s)", 0);
     }else if(kib){
         int_to_char_array(kib, print, sizeof(print), 0);
-        printf_debug(print, 0);
-        printf_debug(" KiB(s)", 0);
+        print_debug(print, 0);
+        print_debug(" KiB(s)", 0);
     }else{
         int_to_char_array(bytes, print, sizeof(print), 0);
-        printf_debug(print, 0);
-        printf_debug(" Byte(s)", 0);
+        print_debug(print, 0);
+        print_debug(" Byte(s)", 0);
     }
 }
 
 void E820_Dump_Descriptor(E820_Range_Descriptor* descriptor){
     char test_char[36];
     int_to_char_array_hex(abs(descriptor->Base_Address), test_char, sizeof(test_char), 10);
-    printf_debug(test_char, 0);
-    printf_debug("->", 0);
+    print_debug(test_char, 0);
+    print_debug("->", 0);
     int_to_char_array_hex(abs(descriptor->Length), test_char, sizeof(test_char), 10);
-    printf_debug(test_char, 0);
-    printf_debug(" (", 0);
+    print_debug(test_char, 0);
+    print_debug(" (", 0);
     int_to_char_array(abs(descriptor->Type), test_char, sizeof(test_char), 0);
-    printf_debug(test_char, 0);
-    printf_debug(")   ", 0);
+    print_debug(test_char, 0);
+    print_debug(")   ", 0);
     PrintMemorySize(descriptor->Length);
     if(descriptor->Type == 1){
-        printf_debug(" of available memory\n", 0);
+        print_debug(" of available memory\n", 0);
     }else{
-        printf_debug(" of unavailable memory\n", 0);
+        print_debug(" of unavailable memory\n", 0);
     }
 }
 
@@ -490,10 +490,10 @@ void Enumerate_E820(){
     #ifdef DEBUG
         char test_char[36];
         int_to_char_array(loop_count, test_char, sizeof(test_char), 0);
-        printf("\n", 0);
-        printf(test_char, 0);
-        printf(" memory regions detected\n", 0);
-        printf_debug("BASE          LIMIT        TYPE  SIZE\n",0);
+        print("\n", 0);
+        print(test_char, 0);
+        print(" memory regions detected\n", 0);
+        print_debug("BASE          LIMIT        TYPE  SIZE\n",0);
     #endif
 
     for(int i = 0; i < loop_count-1; i++){
@@ -520,12 +520,12 @@ void Enumerate_E820(){
     }
     #ifdef DEBUG
         SetTextColor(LCYAN, BLACK);
-        printf_debug("Available memory: ", 0);
+        print_debug("Available memory: ", 0);
         PrintMemorySize(available_mem);
-        printf_debug("\nUnavailable memory: ", 0);
+        print_debug("\nUnavailable memory: ", 0);
         PrintMemorySize(total_mem-available_mem);
-        printf_debug("\nTotal Memory: ", 0);
+        print_debug("\nTotal Memory: ", 0);
         PrintMemorySize(total_mem);
-        printf("\n", 0);
+        print("\n", 0);
     #endif
 }

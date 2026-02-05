@@ -17,17 +17,17 @@ void SetIDTEntry(uint8_t entry_num, uint64_t handler_address, uint16_t selector,
         if(handler_address != (uint64_t)kernel_panic_stub){
             char test_char[32];
             int_to_char_array(entry_num, test_char, sizeof(test_char), 5);
-            printf_debug(test_char, 0);
-            printf_debug(":", 0);
+            print_debug(test_char, 0);
+            print_debug(":", 0);
             int_to_char_array(selector, test_char, sizeof(test_char), 8);
-            printf_debug(test_char, 0);
-            printf_debug(":", 0);
+            print_debug(test_char, 0);
+            print_debug(":", 0);
             int_to_char_array(flags, test_char, sizeof(test_char), 5);
-            printf_debug(test_char, 0);
-            printf_debug(":", 0);
+            print_debug(test_char, 0);
+            print_debug(":", 0);
             int_to_char_array(ist, test_char, sizeof(test_char), 5);
-            printf_debug(test_char, 0);
-            printf_debug("\n", 0);
+            print_debug(test_char, 0);
+            print_debug("\n", 0);
         }
     #endif
     

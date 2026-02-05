@@ -38,15 +38,15 @@ void AHCI_HBA_Reset(){
 
     }
     if((start_window-TimerWindow)/Frequency > 1) { 
-        printf_error_snapshot("FAIL: Couldn't reset HBA\n", 0);
+        print_error_snapshot("FAIL: Couldn't reset HBA\n", 0);
 
-        printf_variable("Press ENTER to retry, or any other key to quit boot.\n");
+        printf("Press ENTER to retry, or any other key to quit boot.\n");
         should_not_proceed = false;
         should_proceed = false;
         // poll until the user decides
         while(should_not_proceed == false && should_proceed == false){}
         if(should_not_proceed){
-            printf_variable("QUIT\n");
+            printf("QUIT\n");
         }else{
             AHCI_HBA_Reset();
             return;
@@ -93,7 +93,7 @@ void AHCI_Init(PCI_Device* device){
     AHCI_Main_MMIO = (AHCI_MMIO*)malloc_specific(&KernelTask, device->Header0.BAR5, &flags);
     (AHCI_MMIO*)malloc_specific(&KernelTask, device->Header0.BAR5+0x1000, &flags);
     #ifdef DEBUG
-        printf_debug("\nSuccessfully setup HBA MMIO\n", 0);
+        print_debug("\nSuccessfully setup HBA MMIO\n", 0);
     #endif
 
     // if we should perform a handoff, then do that
@@ -101,25 +101,25 @@ void AHCI_Init(PCI_Device* device){
     { 
         AHCI_BIOS_Handoff(); 
         if(AHCI_Ownership == false){
-            printf_error_snapshot("FAIL: Couldn't Obtain Ownership \n", 0);
+            print_error_snapshot("FAIL: Couldn't Obtain Ownership \n", 0);
 
             #ifdef DEBUG
             char test_char[22];
             int_to_char_array_binary(AHCI_Main_MMIO->Handoff_Status, test_char, sizeof(test_char), 0);
-            printf_debug(test_char, 0);
-            printf("\n", 0);
+            print_debug(test_char, 0);
+            print("\n", 0);
             #endif
 
             return;
         }
     }else{
         #ifdef DEBUG
-            printf_debug("No need for ownership detected.\n", 0);
+            print_debug("No need for ownership detected.\n", 0);
         #endif
     }
     if(AHCI_Main_MMIO == NULL)
     { 
-        printf_error_snapshot("FAIL: AHCI_Main_MMIO is null. \n", 0);
+        print_error_snapshot("FAIL: AHCI_Main_MMIO is null. \n", 0);
 
         return;
     }    
@@ -131,14 +131,14 @@ void AHCI_Init(PCI_Device* device){
     AHCI_HBA_Reset();
 
     #ifdef DEBUG
-        printf_debug("Succesfully reset HBA\n", 0);
+        print_debug("Succesfully reset HBA\n", 0);
     #endif
 
     SetIDTEntry(AHCI_IRQ_LINE+0x20, (uint64_t)ahci_interrupt_stub, 0x08, 0x8E, 0x00);
     pic_unmask(AHCI_IRQ_LINE);
 
     #ifdef DEBUG
-        printf_debug("Succesfully registered AHCI IDT entry\n", 0);
+        print_debug("Succesfully registered AHCI IDT entry\n", 0);
     #endif
 
     // AHCI specification 3.1.2
@@ -146,7 +146,7 @@ void AHCI_Init(PCI_Device* device){
     AHCI_Main_MMIO->Global_Host_Control |= (1 << 1); // this sets the interrupt enable
 
     #ifdef DEBUG
-        printf_debug("Succesfully enabled AHCI mode and interrupts\n", 0);
+        print_debug("Succesfully enabled AHCI mode and interrupts\n", 0);
     #endif
 
     AHCI_S64A = ((AHCI_Main_MMIO->Host_Capabilities) >> 31) & 1;
@@ -155,10 +155,10 @@ void AHCI_Init(PCI_Device* device){
     // set up ports and their command tables
     AHCI_Setup_Port(0);
 
-    printf_success_snapshot("SUCCESS                    ", 0);
+    print_success_snapshot("SUCCESS                    ", 0);
 }
 
 void HandleAHCIInterrupt(InterruptRegisters* registers){
-    printf_variable("AHCI\n", 0);
+    printf("AHCI\n");
     pic_send_eoi(AHCI_IRQ_LINE);
 }
