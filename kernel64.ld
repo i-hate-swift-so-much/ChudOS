@@ -13,6 +13,7 @@ SECTIONS
     .data : { *(.data*) }
     .bss : { *(COMMON) *(.bss*) }
 
+
     /DISCARD/ : 
     {
         *(.comment)

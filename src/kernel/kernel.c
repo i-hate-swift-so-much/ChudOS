@@ -1,19 +1,4 @@
-#include "Libraries/std.h"
-#include "LowLevel/IDT.h"
-#include "Devices/PIC.h"
-#include "Devices/PS2/Keyboard.h"
-#include "Display/VGA.h"
-#include "Devices/IO.h"
-#include "LowLevel/Power.h"
-#include "Userland/syscall.h"
-#include "LowLevel/Memory.h"
-#include "LowLevel/Timer.h"
-#include "ErrorHandling/KernelPanic.h"
-#include "ErrorHandling/Exceptions.h"
-#include "Devices/PCI.h"
-#include "Devices/Disk/AHCI.h"
-#include "LowLevel/GDT.h"
-#include "Devices/Disk/Floppy.h"
+#include "kernel.h"
 
 #ifndef VERSION_MAJOR
     #define VERSION_MAJOR 0
@@ -34,6 +19,8 @@
 #ifndef BUILD_CLASS
     #define BUILD_CLASS 'b'
 #endif
+
+struct KERNEL_Boot_Status KERNEL_Boot_Info[256];
 
 void kernel_startup(){
     cls();
@@ -119,6 +106,25 @@ void kernel_startup(){
         print(" Initializing Floppy Drive 0 ", 0);
         take_print_snapshot();
         FLOPPY_Init_Drive(0);
+    }
+
+    FLOPPY_Configure(0, true, false, true);
+
+    PrintCycles();
+    printf(" DOING FLOPPY READ TEST ");
+    take_print_snapshot();
+    printf("\n");
+    // at boot0.s line 279-280 i put a byte that reads 69 (which would be placed at byte 439 of the first sector)
+    uint8_t test_floppy_buffer[512];
+    FLOPPY_Read_CHS(0, 0, 0, 1, (uint64_t)test_floppy_buffer, 1);
+    #ifdef DEBUG
+        printf("READ %i FROM BYTE 439 OF 0:0:1\n", test_floppy_buffer[439]);
+        printf("EXPECTED 69\n");
+    #endif
+    if(test_floppy_buffer[439] == 69){
+        print_success_snapshot("SUCCESS", 0);
+    }else{
+        print_error_snapshot("FAILURE", 0);
     }
 
     printf("ChudOS Version %i.%i.%i:%i%c\n", VERSION_MAJOR, VERSION_MINOR, VERSION_PATCH, BUILD, BUILD_CLASS);

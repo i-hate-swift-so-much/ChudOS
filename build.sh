@@ -58,7 +58,8 @@ if [[ $run_with_qemu_legacy_drivers == 1 ]]; then
         -no-reboot -no-shutdown -d int,in_asm -D qemu.log -monitor stdio \
         -device VGA,vgamem_mb=3 \
         -machine q35 \
-        -m 2G
+        -m 2G \
+        -trace "i8237*"
     exit 0
 fi
 

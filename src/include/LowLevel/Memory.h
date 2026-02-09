@@ -127,9 +127,9 @@ void memset(void* dest, uint8_t value, size_t bytes);
 void InitMem();
 
 // Allocates pages
-void* alloc_page(PageDetails page); 
+void* alloc_page(PageDetails* page);
 
-void* free_page(PageDetails page); 
+void* free_page(PageDetails* page); 
 
 void* malloc(Task* TaskDetails);
 
@@ -141,7 +141,7 @@ uint64_t* CalculatePagePhysicalEntryAddress(PageEntries* entries);
 
 PageEntries ExtractPageEntries(uint64_t VirtualAddress);
 
-uint64_t CalculatePageAddress(PageEntries entries);
+uint64_t CalculatePageAddress(PageEntries* entries);
 
 PageDetails ParsePTE(uint64_t* PTE);
 
@@ -155,7 +155,7 @@ void mem_bitmap_dump(uint16_t PT);
 
 void* find_free_pdpt();
 
-void* find_free_pml4();;
+void* find_free_pml4();
 
 PageEntries FindNextFreePhysical();
 

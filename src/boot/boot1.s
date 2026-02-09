@@ -10,8 +10,17 @@ dap_kernel: ; read the kernel into memory
     db 0x00 ;
     dw 127 ; sectors to read
     dw 0x0000 ; offset
-    dw 0x8000 ; segment
+    dw 0x1000 ; segment
     dq 2448 ; start lba
+
+align 16
+dap_kernel_2: ; read the kernel into memory
+    db 0x10 ; always 0x10
+    db 0x00 ;
+    dw 127 ; sectors to read
+    dw 0x0000 ; offset
+    dw 0x2000 ; segment
+    dq 2375 ; start lba
 
 align 16
 dap_kernel_setup: ; read the kernel into memory
@@ -293,9 +302,9 @@ load_kernel_floppy:
     mov ax, 2448
     call calculate_LBA_to_CHS
 
-    mov dword [floppy_target_address], 0x80000
+    mov dword [floppy_target_address], 0x10000
 
-    mov [floppy_read_loop], 127
+    mov [floppy_read_loop], 254
     .loop:
     mov al, [floppy_read_loop]
     cmp al, 0

@@ -1,7 +1,7 @@
 #include <stdint.h>
 #include "stddef.h"
 
-#define KERNEL_LOAD 0x80000
+#define KERNEL_LOAD 0x10000
 #define KERNEL_NEW 0x100000
 
 void memcpy(void* dest, void* src, size_t size){

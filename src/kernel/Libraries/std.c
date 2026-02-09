@@ -268,13 +268,13 @@ void int_to_char_array_binary(int n, char* buffer, size_t buffer_size, int paddi
         // Extract digits from right to left and convert to ASCII characters
         if(negative){
             // Add null terminator at the end
-            buffer[digits+1] = '\0';
+            buffer[digits+2] = '\0';
 
             // Convert with negative symbol
             for (int i = digits - 1; i >= 0; i--) {
                 int remainder = n % 2;
                 char temp_char;
-                temp_char = (char)(remainder + '0');
+                temp_char = (char)((remainder == 1 ? 1 : 0) + '0');
                 buffer[i+3] = temp_char;
                 n /= 2;
                 lastI = i;
@@ -282,19 +282,23 @@ void int_to_char_array_binary(int n, char* buffer, size_t buffer_size, int paddi
             buffer[lastI] = '-';
             buffer[lastI+1] = '0';
             buffer[lastI+2] = 'b';
+            if(padding == 0){return;}
             pad_string(padding, buffer, buffer_size, '0', 3);
         }else{
+            buffer[digits+2] = '\0';
+
             // Convert without negative symbol
             for (int i = digits - 1; i >= 0; i--) {
                 int remainder = n % 2;
                 char temp_char;
-                temp_char = (char)(remainder + '0');
+                temp_char = (char)((remainder == 1 ? 1 : 0) + '0');
                 buffer[i+2] = temp_char;
                 n /= 2;
                 lastI = i;
             }
             buffer[lastI] = '0';
             buffer[lastI+1] = 'b';
+            if(padding == 0){return;}
             pad_string(padding, buffer, buffer_size, '0', 2);
         }
     }
@@ -491,7 +495,7 @@ void printf(const char* toPrint, ...){
 
     int cur = 0;
 
-    char variable_print[70];
+    char variable_print[64];
 
     for(int i = 0; i < args_length; i++){
         cur = printf_print_from(toPrint, length, cur);

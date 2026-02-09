@@ -276,6 +276,9 @@ floppy_target_address: resb 4
 floppy_read_loop: resb 1
 last_error_code: resb 1
 
+times 439-($-$$) db 0
+floppy_test_read_kernel: db 69
+
 times 440-($-$$) db 0
 ; address 0x7DB8
 FloppyInfoStruct:

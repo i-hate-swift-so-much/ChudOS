@@ -98,13 +98,13 @@ PageEntries ExtractPageEntries(uint64_t VirtualAddress){
 
 // Convert a PageEntries struct to a single
 // virtual address.
-uint64_t CalculatePageAddress(PageEntries entries){
+uint64_t CalculatePageAddress(PageEntries* entries){
     // Mask out the entries to make sure its proper
-    uint16_t PML4_Entry = entries.PML4_Entry & 0x1FF;
-    uint16_t PDPT_Entry = entries.PDPT_Entry & 0x1FF;
-    uint16_t PD_Entry = entries.PD_Entry & 0x1FF;
-    uint16_t PT_Entry = entries.PT_Entry & 0x1FF;
-    uint16_t Offset = entries.Page_Offset & 0xFFF;
+    uint16_t PML4_Entry = entries->PML4_Entry & 0x1FF;
+    uint16_t PDPT_Entry = entries->PDPT_Entry & 0x1FF;
+    uint16_t PD_Entry = entries->PD_Entry & 0x1FF;
+    uint16_t PT_Entry = entries->PT_Entry & 0x1FF;
+    uint16_t Offset = entries->Page_Offset & 0xFFF;
 
     uint64_t address = ((uint64_t)PML4_Entry << 39) | ((uint64_t)PDPT_Entry << 30) | ((uint64_t)PD_Entry << 21) | ((uint64_t)PT_Entry << 12) | ((uint64_t)Offset);
     uint64_t canonical_address = (int64_t)(address << 16) >> 16;
@@ -126,13 +126,13 @@ uint64_t* CalculatePagePhysicalEntryAddress(PageEntries* entries){
 }
 
 // Allocates a single page, includes protection against memory leaks
-void* alloc_page(PageDetails page){
-    PageEntries Deconstructed = ExtractPageEntries(page.virtual_address);
+void* alloc_page(PageDetails* page){
+    PageEntries Deconstructed = ExtractPageEntries(page->virtual_address);
     uint16_t PDPT_Entry = Deconstructed.PDPT_Entry;
     uint16_t PD_Entry = Deconstructed.PD_Entry;
     uint16_t Page = Deconstructed.PT_Entry;
 
-    PageEntries DeconstructedP = ExtractPageEntries(page.physical_address);
+    PageEntries DeconstructedP = ExtractPageEntries(page->physical_address);
     uint16_t PDPT_EntryP = DeconstructedP.PDPT_Entry;
     uint16_t PD_EntryP = DeconstructedP.PD_Entry;
     uint16_t PageP = DeconstructedP.PT_Entry;
@@ -145,31 +145,31 @@ void* alloc_page(PageDetails page){
         if(Page_Entry == NULL){ print("No page entry\n", 0); return NULL; }
 
         uint64_t new_entry = 
-            (page.physical_address) |
-            (page.flags.flags) |
-            (((uint64_t)page.flags.Execute_Disable) << 63);
+            (page->physical_address) |
+            (page->flags.flags) |
+            (((uint64_t)page->flags.Execute_Disable) << 63);
 
 
         *Page_Entry = new_entry;
 
         // must flush the TLB with invlpg, otherwise CPU wont know the page was updated
 
-        asm volatile("invlpg (%0)" :: "r"((uintptr_t)(page.virtual_address)) : "memory");
+        asm volatile("invlpg (%0)" :: "r"((uintptr_t)(page->virtual_address)) : "memory");
     }else{
         print("Page unavailable\n", 0);
-        return (void*)(page.virtual_address);
+        return (void*)(page->virtual_address);
     }
 
-    PageEntries physicalData = ExtractPageEntries(page.physical_address);
+    PageEntries physicalData = ExtractPageEntries(page->physical_address);
 
     mem_SetBit(physicalData.PDPT_Entry, physicalData.PD_Entry, physicalData.PT_Entry);
 
-    return (void*)(page.virtual_address);
+    return (void*)(page->virtual_address);
 }; 
 
 // Gets rid of a single page, includes protection against memory leaks
-void* free_page(PageDetails page){
-    PageEntries Deconstructed = ExtractPageEntries(page.virtual_address);
+void* free_page(PageDetails* page){
+    PageEntries Deconstructed = ExtractPageEntries(page->virtual_address);
     uint16_t PDPT_Entry = Deconstructed.PDPT_Entry;
     uint16_t PD_Entry = Deconstructed.PD_Entry;
     uint16_t Page = Deconstructed.PT_Entry;
@@ -179,7 +179,7 @@ void* free_page(PageDetails page){
     uint32_t PageEntry = Page * PD_Entry;
     if(PageEntry+2 > VirtualMemorySize){ return NULL; } 
 
-    PageEntries DeconstructedP = ExtractPageEntries(page.physical_address);
+    PageEntries DeconstructedP = ExtractPageEntries(page->physical_address);
     uint16_t PDPT_EntryP = DeconstructedP.PDPT_Entry;
     uint16_t PD_EntryP = DeconstructedP.PD_Entry;
     uint16_t PageP = DeconstructedP.PT_Entry;
@@ -195,14 +195,14 @@ void* free_page(PageDetails page){
         *Page_Entry = new_entry;
 
         // must flush the TLB with invlpg, otherwise CPU wont know the page was updated
-        asm volatile("invlpg (%0)" :: "r"(page.virtual_address) : "memory");
+        asm volatile("invlpg (%0)" :: "r"(page->virtual_address) : "memory");
     }
     
-    PageEntries physicalData = ExtractPageEntries(page.physical_address);
+    PageEntries physicalData = ExtractPageEntries(page->physical_address);
 
     mem_ClearBit(physicalData.PDPT_Entry, physicalData.PD_Entry, physicalData.PT_Entry);
 
-    return (void*)(page.virtual_address);
+    return (void*)(page->virtual_address);
 }; 
 
 PageEntries FindNextFreePhysical(){
@@ -239,11 +239,11 @@ void* malloc(Task* TaskDetails){
     NextPage.flags.Execute_Disable = false;
     PageEntries nextFree = FindNextFreePhysical();
     if(nextFree.PML4_Entry == 0xFF){ return NULL; }
-    NextPage.physical_address = CalculatePageAddress(nextFree);
+    NextPage.physical_address = CalculatePageAddress(&nextFree);
     
     NextPage.virtual_address = NextPageAddress;
 
-    void* allocated = alloc_page(NextPage);
+    void* allocated = alloc_page(&NextPage);
 
     if(allocated != NULL) { TaskDetails->MemoryData.PageCount += 1; }
 
@@ -267,7 +267,7 @@ void* malloc_specific(Task* TaskDetails, uint64_t RequestedAddress, PagePermissi
     
     NextPage.virtual_address = NextPageAddress;
 
-    void* allocated = alloc_page(NextPage);
+    void* allocated = alloc_page(&NextPage);
 
     if(allocated != NULL) { TaskDetails->MemoryData.PageCount += 1; }
 

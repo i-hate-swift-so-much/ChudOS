@@ -7,6 +7,8 @@ VERSION_PATCH ?= 1
 BUILD ?= 0
 BUILD_TYPE ?= b
 
+SHELL_LBA = 3000
+
 as = nasm
 ld = x86_64-elf-ld
 c = x86_64-elf-gcc
