@@ -56,17 +56,51 @@
 .endm
 
 .macro check_cpl
+        pushq %rax
+        movq 8(%rsp), %rax
+        andq $3, %rax
+        cmpq $0, %rax
+        jne 2f
         cmpq $0x08, 8(%rsp)
         jne 2f
         1:
-                // from kernel
-                pushq %rax
-                movq 16(%rsp), %rax // 16 instead of 8 due to %rax push
-                movq %rax, check_priv
-                popq %rax
-                subq $16, %rsp
+                // from kernel, shift the interrupt frame by 3 quads and set RSP and SS
+
+                pushq $0x10
+                pushq %rsp
+                pushq 32(%rsp) // rflags
+                pushq 32(%rsp) // cs
+                pushq 32(%rsp) // rip
                 jmp 3f
         2:
+                popq %rax
+                pushq %rax
+                movq 16(%rsp), %rax
+                movq %rax, check_priv
+                popq %rax
+        3:
+.endm
+
+.macro check_cpl_err
+        pushq %rax
+        movq 8(%rsp), %rax
+        andq $3, %rax
+        cmpq $0, %rax
+        jne 2f
+        cmpq $0x08, 8(%rsp)
+        jne 2f
+        1:
+                // from kernel, shift the interrupt frame by 3 quads and set RSP and SS
+
+                pushq $0x10
+                pushq %rsp
+                pushq 40(%rsp) // rflags
+                pushq 40(%rsp) // cs
+                pushq 40(%rsp) // rip
+                pushq 40(%rsp)
+                jmp 3f
+        2:
+                popq %rax
                 pushq %rax
                 movq 16(%rsp), %rax
                 movq %rax, check_priv
@@ -75,12 +109,7 @@
 .endm
 
 .macro check_cpl_ret
-        cmpq $0x08, check_priv
-        jne 1f
-                // from kernel
-                addq $16, %rsp // skip the fake dummy values
-        1:
-                // from user, do nothing
+        
 .endm
 
 isr80_stub:
@@ -88,7 +117,12 @@ isr80_stub:
 
         push_regs
 
-        pushq $0x00
+        movq %cr2, %rax
+        push %rax
+
+        pushq $0x80
+
+        movq %rsp, %rdi
 
         call handle_syscall
 
@@ -146,8 +180,6 @@ invalid_opcode_stub:
 
         check_cpl_ret
 
-        add $8, %rsp
-
         iretq
 
 gpf_stub:
@@ -155,7 +187,7 @@ gpf_stub:
         
         cld
 
-        check_cpl
+        check_cpl_err
 
         push_regs
 
@@ -184,7 +216,7 @@ page_fault_stub:
         
         cld
         
-        check_cpl
+        check_cpl_err
 
         push_regs
 
@@ -227,7 +259,7 @@ timer_interrupt_stub:
 
         pop_regs // pop general registers
 
-        check_cpl_ret // deletes stack padding for iretq
+        //check_cpl_ret // deletes stack padding for iretq
 
         iretq
 

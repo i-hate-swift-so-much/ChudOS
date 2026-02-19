@@ -20,7 +20,16 @@ dap_kernel_2: ; read the kernel into memory
     dw 127 ; sectors to read
     dw 0x0000 ; offset
     dw 0x2000 ; segment
-    dq 2375 ; start lba
+    dq 2575 ; start lba
+
+align 16
+dap_kernel_3: ; read the kernel into memory
+    db 0x10 ; always 0x10
+    db 0x00 ;
+    dw 127 ; sectors to read
+    dw 0x0000 ; offset
+    dw 0x3000 ; segment
+    dq 2702 ; start lba
 
 align 16
 dap_kernel_setup: ; read the kernel into memory
@@ -304,7 +313,7 @@ load_kernel_floppy:
 
     mov dword [floppy_target_address], 0x10000
 
-    mov [floppy_read_loop], 254
+    mov [floppy_read_loop], 381
     .loop:
     mov al, [floppy_read_loop]
     cmp al, 0

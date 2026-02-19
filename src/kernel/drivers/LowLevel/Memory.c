@@ -2,9 +2,9 @@
 #include "stdbool.h"
 #include "Libraries/Math.h"
 
-// Due to the way boot2.s is built and placed in memory, the physical address
-// of PML4 is always the same
-uint64_t PML4_Physical = 0x61000;
+// The physical address of the start of the PML4 table, loaded by init_mem from CR3
+uint64_t Kernel_PML4_Physical = 0;
+uint64_t PML4_Physical = 0;
 
 // The following are how many of each table actually exist in memory.
 // These exist in case the kernel wants to support more memory in the future
@@ -18,9 +18,7 @@ uint64_t PML4_Physical = 0x61000;
 uint32_t VirtualMemorySize = 0; // the total size of the virtual memory in pages
 bool mem_init = false; // used by the allocator to make sure the kernel has properly initialized virtual memory 
 
-Task KernelTask;
-
-uintptr_t KernelPMPDT_Address = 0x1000000;
+Task* KernelTask;
 
 PhysicalMemoryPageDescriptorTable KernelPMPDT;
 
@@ -35,7 +33,7 @@ void mem_SetBit(uint16_t PageDescriptorTable, uint16_t PageTable, uint16_t Page)
     KernelPMPDT.descriptors[PageDescriptorTable].tables[PageTable].PageBlocks[idx] |= (1ULL << bit);
 }
 
-// Zero a bit from the bitmap of physical space, used for fragmentation
+// Clear a bit from the bitmap of physical space, used for fragmentation
 void mem_ClearBit(uint16_t PageDescriptorTable, uint16_t PageTable, uint16_t Page) {
     uint16_t idx = Page / 64;
     uint16_t bit = Page % 64;
@@ -52,9 +50,63 @@ uint8_t mem_GetBit(uint16_t PageDescriptorTable, uint16_t PageTable, uint16_t Pa
     return ret;
 }
 
+// Sets up a new PML4 table for a user task. Follows the basic code from boot2.s. Returns the new PML4 tables physical address
+uint64_t Create_User_Memory(){
+    struct PageMapLevel4* pml4 = (struct PageMapLevel4*)malloc(KernelTask);
+    struct PageDirectoryPointerTable* pdpt = (struct PageDirectoryPointerTable*)malloc(KernelTask);
+    struct PageDirectory* pd = (struct PageDirectory*)malloc(KernelTask);
+    
+    // in boot2.s, 16 page tables are set up. thats what I will do
+    struct PageTable* pt = (struct PageTable*)malloc(KernelTask); // create the first pt
+    // create 15 more pt's
+    for(int i = 0; i < 15; i++){
+        malloc(KernelTask);
+    }
+
+    struct PageDirectoryPointerTable* pdpt_user = (struct PageDirectoryPointerTable*)malloc(KernelTask);
+    struct PageDirectory* pd_user = (struct PageDirectory*)malloc(KernelTask);
+
+    // copy ALL the page data from the kernel into the new kernel PML4 entry
+    size_t kernel_mem_size = sizeof(struct PageMapLevel4) + sizeof(struct PageDirectoryPointerTable) + sizeof(struct PageDirectory) + (sizeof(struct PageTable) * 16);
+    memcpy((void*)pml4, (void*)Kernel_PML4_Physical, kernel_mem_size);
+
+    return phys_addr(pml4);
+}
+
+// syncs PML4_Physical to CR3
+void mem_sync_cr3(){
+    // set PML4_Physical
+    asm volatile(
+        "movq %%cr3, %%rax\n"
+        "movq %%rax, %0\n"
+        : "=r" (PML4_Physical)
+        : : "%rax"
+    );
+}
+
+void mem_set_cr3(uint64_t addr){
+    // set the CR3 register to the new PML4
+    asm volatile(
+        "cli\n"
+        "movq %0, %%cr3\n"
+        : : "r" (addr) :
+    );
+    mem_sync_cr3();
+    asm volatile("sti");
+}
+
 // Initialize virtual memory, only ever called at kernel boot
 void InitMem(){
     asm("cli");
+
+    mem_sync_cr3();
+
+    asm volatile(
+        "movq %%cr3, %%rax\n"
+        "movq %%rax, %0\n"
+        : "=r" (Kernel_PML4_Physical)
+        : : "%rax"
+    );
 
     // zero out the PMPDT
     memset(&KernelPMPDT, 0, sizeof(KernelPMPDT));
@@ -73,12 +125,12 @@ void InitMem(){
     KernelMemory.BaseVirtualAddress = 0x0;
     KernelMemory.PageCount = KERNEL_PT_COUNT*512;
     
-    KernelTask.ProcessID = 0;
-    KernelTask.MemoryData = KernelMemory;
-    KernelTask.RequestedSleepCycle = 0;
-    KernelTask.Available = false;
+    KernelTask = (Task*)&TaskManager[0];
 
-    
+    KernelTask->ProcessID = 0;
+    KernelTask->MemoryData = KernelMemory;
+    KernelTask->RequestedSleepCycle = 0;
+    KernelTask->Exists = true;
 
     asm("sti");
 }
@@ -221,6 +273,10 @@ PageEntries FindNextFreePhysical(){
             }
         }
     }
+    ret.PML4_Entry = 512;
+    ret.PDPT_Entry = 512;
+    ret.PD_Entry = 512;
+    ret.PT_Entry = 512;
     return ret;
 }
 
@@ -328,31 +384,6 @@ PageDetails ParsePTE(uint64_t* PTE){
     return ret;
 }
 
-// Finds an entry in the Page Directory Pointer Table that isn't already present.
-// Used by void create_pd(int pages);
-void* find_free_pdpt(){
-    uint64_t* cur_pde;
-    PageEntries cur_target;
-
-    bool present = false;
-
-    uint16_t pdpt;
-    uint16_t pml4;
-
-    while(!present && pml4 > 512){
-        if(*cur_pde & 1){present = true;}
-
-        cur_target.PDPT_Entry = pdpt;
-        cur_target.PML4_Entry = pml4;
-        
-        cur_pde = CalculatePagePhysicalEntryAddress(&cur_target);
-
-        pdpt++;
-        if(pdpt == 512){ pdpt = 0; pml4++; }
-    }
-    if(pml4 >= 512){ print("Out of memory!\n", 0); return NULL;}
-}
-
 void mem_bitmap_dump(uint16_t PT){
     cls();
     char cur;
@@ -371,64 +402,6 @@ void memset(void* dest, uint8_t value, size_t bytes){
     while(bytes--){
         *dest_m++ = value;
     }
-}
-
-// Finds an entry in the PML4 that isn't already present.
-// Used by void create_pd(int pages);
-void* find_free_pml4(){
-    uint64_t* cur_pde;
-    PageEntries cur_target;
-
-    bool present = false;
-
-    int pml4;
-
-    while(!present && pml4 < 512){
-        if(*cur_pde & 1){present = true;}
-
-        cur_target.PML4_Entry = pml4;
-
-        cur_pde = CalculatePagePhysicalEntryAddress(&cur_target);
-
-        pml4++;
-    }
-    if(pml4 >= 512){ return NULL; }
-}
-
-/*
-    Used to expand the size of virtual memory, only really
-    used when initializing memory because of how little virtual
-    memory is created by boot2.s. Defines 1 gibibyte of virtual memory per call
-*/
-void* create_pd(){
-    uint64_t* new_page_directory;
-    uint64_t* free_pdpt;
-
-    free_pdpt = (uint64_t*)find_free_pdpt();
-    if(free_pdpt == NULL){ print("Out of virtual memory!\n", 0); return NULL; }
-
-    new_page_directory =  (uint64_t*)malloc(&KernelTask);
-
-    *free_pdpt = (uint64_t)new_page_directory | 1;
-    return (void*)new_page_directory;
-}
-
-/*
-    Used to expand the size of virtual memory, only really
-    used when initializing memory because of how little virtual
-    memory is created by boot2.s. Defines 512 gibibytes of virtual memory per call.
-*/
-void* create_pdpt(){
-    uint64_t* new_pdpt;
-    uint64_t* free_pml4;
-
-    free_pml4 = (uint64_t*)find_free_pml4();
-    if(free_pml4 == NULL){ return NULL; }
-
-    new_pdpt =  (uint64_t*)malloc(&KernelTask);
-
-    *free_pml4 = (uint64_t)new_pdpt | 1;
-    return (void*)new_pdpt;
 }
 
 void PrintMemorySize(size_t bytes){
@@ -528,4 +501,28 @@ void Enumerate_E820(){
         PrintMemorySize(total_mem);
         print("\n", 0);
     #endif
+}
+
+/**
+ * @brief Returns the physical address of a virtual address. Does account for the offset
+ * @param pointer Pointer to the virtual address you want to convert to physical
+ */
+uint64_t phys_addr(void* pointer){
+    uint64_t addr = (uint64_t)pointer & ~0xFFF; // convert the pointer to it's address and get rid of the offset
+    uint16_t offset = (uint64_t)pointer & 0xFFF; // get the offset of the pointer
+
+    PageEntries entries = ExtractPageEntries(addr);
+
+    uint64_t* info = CalculatePagePhysicalEntryAddress(&entries);
+
+    return (*info & 0xFFFFFFFFFFFFF000) | offset;
+}
+
+
+/**
+ * @brief Creates a new PDPT in the PML4 table.
+ * @param pml4_entry The index in the PML4 which 
+ */
+void create_pdpt(uint16_t pml4_entry, uint64_t pd_entry){
+
 }

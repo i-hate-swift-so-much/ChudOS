@@ -96,3 +96,4 @@ link_kernel ${kernel_obj} ${drivers_obj}:
 	x86_64-elf-objcopy -O binary ${kernel_link} ${kernel_flat}
 	dd if=${kernel_flat} of=${output_img} bs=512 seek=2448 conv=notrunc
 	dd if=obj/kernel_setup.bin of=${output_img} bs=512 seek=2648 conv=notrunc
+	dd if=program_bin/shell.elf of=${output_img} bs=512 seek=3000 conv=notrunc

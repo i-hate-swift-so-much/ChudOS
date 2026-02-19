@@ -20,8 +20,6 @@
     #define BUILD_CLASS 'b'
 #endif
 
-struct KERNEL_Boot_Status KERNEL_Boot_Info[256];
-
 void kernel_startup(){
     cls();
 
@@ -46,7 +44,7 @@ void kernel_startup(){
     SetIDTEntry(0x0D, (uint64_t)gpf_stub, 0x08, 0x8F, 0x04);
     SetIDTEntry(0x0E, (uint64_t)page_fault_stub, 0x08, 0x8F, 0x04);
     SetIDTEntry(0x80, (uint64_t)isr80_stub, 0x08, 0x8E, 0x03);
-    SetIDTEntry(0x20, (uint64_t)timer_interrupt_stub, 0x08, 0x8E, 0x01);
+    SetIDTEntry(0x20, (uint64_t)timer_interrupt_stub, 0x08, 0x8E, 0x02);
     SetIDTEntry(0x28, (uint64_t)sync_time_stub, 0x08, 0x8E, 0x01);
     LoadIDT();
     SetTimerFrequency(1000); // the timer will go off every 1 milisecond
@@ -69,7 +67,7 @@ void kernel_startup(){
 
     InitMem();
 
-    uint64_t* test_alloc = (uint64_t*)(malloc(&KernelTask));
+    uint64_t* test_alloc = (uint64_t*)(malloc(KernelTask));
 
     // made for testing paging
     *test_alloc = (uint64_t)0xFFULL;
@@ -128,6 +126,18 @@ void kernel_startup(){
     }
 
     printf("ChudOS Version %i.%i.%i:%i%c\n", VERSION_MAJOR, VERSION_MINOR, VERSION_PATCH, BUILD, BUILD_CLASS);
+    
+    PrintCycles();
+    printf(" Creating Shell Task\n");
+
+    // begin setting up the shell
+    LoadElf(0, 3000, 4278); // the shell is at LBA 3000 and 4278 bytes in length
+
+    //ClearScreen();
+
+    tasks_enabled = true;
+
+
 
     while (1){
 

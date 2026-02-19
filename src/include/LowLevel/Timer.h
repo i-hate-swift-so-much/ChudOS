@@ -6,6 +6,7 @@
 #include "LowLevel/IDT.h"
 #include "Devices/PIC.h"
 #include "Display/VGA.h"
+#include "Userland/Tasks.h"
 
 typedef struct{
     uint16_t second;
@@ -17,6 +18,7 @@ typedef struct{
 extern uint64_t SecondsSinceBoot;
 extern uint64_t TimerWindow;
 extern uint16_t Frequency;
+extern bool tasks_enabled;
 
 void timer_interrupt_stub();
 void sync_time_stub();
@@ -25,3 +27,4 @@ void SyncTime(InterruptRegisters* frame);
 void SetTimerFrequency(uint16_t hz);
 void PrintCycles();
 void PrintSecondsSinceBoot();
+void context_switch(InterruptRegisters* regs);

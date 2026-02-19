@@ -419,4 +419,4 @@ pd_table_kernel:
     resq 512 ; blank entries
 
 pt:
-    resq 65536
+    resq 8192

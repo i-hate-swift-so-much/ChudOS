@@ -9,6 +9,29 @@ uint16_t Frequency = 1193180;
 
 bool enabled = false;
 
+bool tasks_enabled = false;
+
+bool first = true;
+
+void task_switch_frame(InterruptRegisters* dest, InterruptRegisters* src){
+    memcpy((void*)dest, (void*)src, sizeof(InterruptRegisters));
+}
+
+void task_switch(int pid){
+    Task* task = &TaskManager[pid];
+    
+    TASKMGR_set_current(pid);
+}
+
+int find_next_task(int cur_pid){
+    for(int i = cur_pid+1; i < 512; i++){
+        if(TaskManager[i].Exists == true){
+            return i;
+        }
+    }
+    return 512;
+}
+
 bool IsLeapYear(int y) {
     return (y % 4 == 0 && y % 100 != 0) || (y % 400 == 0);
 }
@@ -49,6 +72,31 @@ void TimerInterrupt(InterruptRegisters* frame){
     
     TimerWindow %= 1000;
     if(TimerWindow == 999){SecondsSinceBoot++;}
+
+    if(tasks_enabled){
+        int cur_pid = TASKMGR_get_current();
+        Task* cur_task = (Task*)&TaskManager[cur_pid];
+
+        // update cur tasks regs
+        task_switch_frame((InterruptRegisters*)&cur_task->SavedRegisters, frame);
+
+        if(cur_task->UsedTicks >= cur_task->MaxTicks){
+            cur_task->UsedTicks = 0;
+            int next_pid = find_next_task(cur_pid);
+
+            if(next_pid == 512){ pic_send_eoi(0x00); return; }
+
+            Task* next_task = (Task*)&TaskManager[next_pid];
+
+            // make it so we return with the correct next task's info
+            task_switch_frame(frame, (InterruptRegisters*)&next_task->SavedRegisters);
+
+            task_switch(next_pid);
+        }else{
+            cur_task->UsedTicks++;
+        }
+
+    }
     
     pic_send_eoi(0x00);
 }
@@ -96,4 +144,20 @@ void SyncTime(InterruptRegisters* frame){
     pic_unmask(0x00);
 
     enabled = true;
+
+    printf("\nSS: %x\n", frame->ss);
+    printf("RSP: %x\n", frame->rsp);
+    printf("RFLAGS: %x\n", frame->rflags);
+    printf("CS: %x\n", frame->cs);
+    printf("RIP: %x\n", frame->rip);
+
+    return;
+    
+    asm volatile(
+        "cli\n"
+        "1:\n\t"
+        "hlt\n"
+        "jmp 1b\n"
+        :::
+    );
 }

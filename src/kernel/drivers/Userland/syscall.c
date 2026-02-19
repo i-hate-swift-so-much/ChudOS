@@ -3,6 +3,9 @@
 int curRow = 0;
 int curCol = 0;
 
+#define STD_IN_FD 0
+#define STD_OUT_FD 1
+
 /*
 int 0x80 (syscall) can only be triggered from user space because it requires the CPU to automatically push
 registers RSP and SS, which are only passed in user mode. If called from kernel mode, it will result in a
@@ -10,21 +13,32 @@ garbage struct being pushed, it will push the RegistersKernelCall struct which i
 the RegistersUsersCall struct, and does not feature RSP and SS, which will corrupt the stack.
 */
 
+int lastPrintX = 0;
+int lastPrintY = 0;
+
 void handle_syscall(InterruptRegisters regs){
-    uint64_t eax_value = regs.rax;
-    uint64_t ebx_value = regs.rbx;
-    uint64_t ecx_value = regs.rcx;
-    uint64_t edx_value = regs.rdx;
+    uint64_t rax_value = regs.rax;
+    uint64_t rbx_value = regs.rbx;
+    uint64_t rcx_value = regs.rcx;
+    uint64_t rdx_value = regs.rdx;
 
-    printf("SYSCALL\n", 0);
+    printf("SYSCALL\n");
 
-    char buffer[22];
-    int_to_char_array(regs.rax, buffer, sizeof(buffer), 0);
+    printf("RAX: %x\nRBX: %x\nRCX: %x\nRDX: %x\n", rax_value, rbx_value, rcx_value, rdx_value);
 
-    printf(buffer, 0);
-    printf("\n", 0);
-
-    if(eax_value == 1){
-        printf((char*)ecx_value, edx_value);
+    switch (rax_value){
+        case 1:
+            // READ
+            // rdx = descriptor
+            // rcx = byte count
+            // rbx = buffer address
+            if(rdx_value == STD_OUT_FD){
+                char* msg = (char*)rbx_value;
+                for(int i = 0; i < rcx_value; i++){
+                    WriteCharacter(msg[i], i, 0);
+                    lastPrintX++;
+                }
+            }
+            break;
     }
 }

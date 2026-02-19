@@ -97,5 +97,6 @@ void FLOPPY_Check_FDC();
 uint8_t FLOPPY_Get_Version(uint8_t Drive);
 void FLOPPY_Configure(uint8_t Drive, bool Use_Implied_Seek, bool Disable_FIFO, bool Disable_PIO);
 int FLOPPY_Read_CHS(uint8_t Drive, uint8_t Cylinder, uint8_t Head, uint8_t Sector, uint64_t BufferAddress, uint16_t SectorCount);
+int FLOPPY_Read_LBA(uint8_t Drive, uint64_t LBA, uint64_t BufferAddress, uint16_t SectorCount);
 
 CHS FLOPPY_LBA_To_CHS(uint64_t LBA);

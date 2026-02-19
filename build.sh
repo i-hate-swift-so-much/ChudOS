@@ -1,6 +1,8 @@
 #!/bin/bash
 rm -rf qemu.log
 
+stty -echo
+
 version_patch="3"
 version_minor="1"
 version_major="0"
@@ -60,6 +62,7 @@ if [[ $run_with_qemu_legacy_drivers == 1 ]]; then
         -machine q35 \
         -m 2G \
         -trace "i8237*"
+    stty echo
     exit 0
 fi
 
@@ -70,5 +73,6 @@ if [[ $run_with_qemu == 1 ]]; then
         -device VGA,vgamem_mb=3 \
         -machine q35 \
         -m 2G
+    stty echo
     exit 0
 fi

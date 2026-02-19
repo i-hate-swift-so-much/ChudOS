@@ -65,12 +65,12 @@ void AHCI_Setup_Port(uint8_t index){
     flags.Execute_Disable = false;
 
     if(index % 4 == 0){
-        malloc_specific(&KernelTask, (uint64_t)curPort, &flags);
+        malloc_specific(KernelTask, (uint64_t)curPort, &flags);
     }
 
     PageEntries nextFree = FindNextFreePhysical();
 
-    curPort->Command_List_BAR = (uint64_t)malloc_specific(&KernelTask, CalculatePageAddress(&nextFree), &flags);
+    curPort->Command_List_BAR = (uint64_t)malloc_specific(KernelTask, CalculatePageAddress(&nextFree), &flags);
 }
 
 /*
@@ -92,8 +92,8 @@ void AHCI_Init(PCI_Device* device){
     flags.flags = KERNEL_FLAGS_UNCACHEABLE;
     flags.Execute_Disable = false;
 
-    AHCI_Main_MMIO = (AHCI_MMIO*)malloc_specific(&KernelTask, device->Header0.BAR5, &flags);
-    (AHCI_MMIO*)malloc_specific(&KernelTask, device->Header0.BAR5+0x1000, &flags);
+    AHCI_Main_MMIO = (AHCI_MMIO*)malloc_specific(KernelTask, device->Header0.BAR5, &flags);
+    (AHCI_MMIO*)malloc_specific(KernelTask, device->Header0.BAR5+0x1000, &flags);
     #ifdef DEBUG
         print_debug("\nSuccessfully setup HBA MMIO\n", 0);
     #endif

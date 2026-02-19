@@ -230,7 +230,7 @@ void FLOPPY_Configure(uint8_t Drive, bool Use_Implied_Seek, bool Disable_FIFO, b
 
 /*
     Initiates the VERSION command and returns the result.
-    0x90 = the standard intel drive
+    0x90 = the standard intel fdc
 */
 uint8_t FLOPPY_Get_Version(uint8_t Drive){
     FLOPPY_Set_Drive(Drive);
@@ -242,16 +242,6 @@ uint8_t FLOPPY_Get_Version(uint8_t Drive){
     FLOPPY_Send_Command(FLOPPY_CMD_VERSION, 0, Parameters);
     FLOPPY_Read_Result_Bytes(1, Result_Bytes);
     return Result_Bytes[0];
-}
-
-uint64_t FLOPPY_Virtual_To_Phyiscal(uint64_t Virtual_Addr){
-    PageEntries decon = ExtractPageEntries(Virtual_Addr & ~0xFFF);
-    uint64_t* PTE = CalculatePagePhysicalEntryAddress(&decon);
-    PageDetails dets = ParsePTE(PTE);
-
-    uint64_t PhysicalAddr = dets.physical_address;
-    PhysicalAddr |= Virtual_Addr & 0xFFF; // restore the offset
-    return PhysicalAddr;
 }
 
 /**
@@ -364,4 +354,21 @@ int FLOPPY_Read_CHS(uint8_t Drive, uint8_t Cylinder, uint8_t Head, uint8_t Secto
     #endif
 
     return 0;
+}
+
+/**
+    * @brief Reads sectors from a FLOPPY by reprogramming the ISA-DMA and then issuing a READ command with it's parameters.
+    This function uses a bounce buffer (at the top of this file) thats read into then memcpy'd into the real buffers
+    location.
+    * @param Drive The drive index
+    * @param Cylinder The starting Cylinder to read from
+    * @param Head The starting Head to read from
+    * @param Sector The starting Sector to read from
+    * @param BufferAddress the address of the buffer to write to
+    * @param SectorCount The amount of sectors to read
+    * @return int 0 on success, anything else is the error code
+*/
+int FLOPPY_Read_LBA(uint8_t Drive, uint64_t LBA, uint64_t BufferAddress, uint16_t SectorCount){
+    CHS new = FLOPPY_LBA_To_CHS(LBA);
+    return FLOPPY_Read_CHS(Drive, new.Cylinder, new.Head, new.Sector, BufferAddress, SectorCount);
 }

@@ -1,7 +1,7 @@
 #include "ErrorHandling/Exceptions.h"
 
 void HandlePageFault(InterruptRegistersError* regs){
-    print("Page fault\n", 0);
+    printf("Page fault\n");
 
     PageEntries newPhysical = FindNextFreePhysical();
     uint64_t virtual_address = regs->cr2;
@@ -9,7 +9,7 @@ void HandlePageFault(InterruptRegistersError* regs){
     void* confirmation;
 
     if(virtual_address > VIRTUAL_MEMORY_BARRIER){
-        print("User\n", 0);
+        printf("User\n");
         
         PageDetails newUser;
         newUser.flags.flags = USER_FLAGS;
@@ -19,7 +19,7 @@ void HandlePageFault(InterruptRegistersError* regs){
 
         alloc_page(&newUser);
     }else{
-        print("Kernel\n", 0);
+        printf("Kernel\n");
         PageDetails newKernel;
         newKernel.flags.flags = KERNEL_FLAGS;
         newKernel.flags.Execute_Disable = false;
@@ -27,22 +27,6 @@ void HandlePageFault(InterruptRegistersError* regs){
         newKernel.virtual_address = virtual_address;
 
         alloc_page(&newKernel);
-    }
-
-    return;
-
-    if(confirmation == NULL){
-        print("NULL\n", 0);
-    }else{
-        char pointer_char[68];
-        int_to_char_array_hex((uintptr_t)confirmation, pointer_char, sizeof(pointer_char), 0);
-        print(pointer_char, 0);
-        print("\n", 0);
-        
-        PageEntries extract = ExtractPageEntries((uintptr_t)confirmation);
-        int_to_char_array_binary((uint64_t)*CalculatePagePhysicalEntryAddress(&extract), pointer_char, sizeof(pointer_char), 0);
-        print(pointer_char, 0);
-        print("\n", 0);
     }
 
     return;
@@ -72,5 +56,14 @@ void GeneralProtectionFault(InterruptRegistersError* regs){
 
 void InvalidOpcode(InterruptRegistersError* regs){
     printf("Invalid opcode at RIP %x\n", regs->rip);
+
+    asm volatile(
+        "cli\n"
+        "1:\n\t"
+        "hlt\n"
+        "jmp 1b\n"
+        :::
+    );
+    
     return;
 }

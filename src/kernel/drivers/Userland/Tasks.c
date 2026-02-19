@@ -1,35 +1,231 @@
 #include "Userland/Tasks.h"
 #include "LowLevel/Memory.h"
+#include "Devices/Disk/Floppy.h"
+
+#define TASK_COUNT 512
 
 Task TaskManager[512];
 
-/*
-    NOTE: certain header values must be modified using patchelf.
-    Elf header values that must be modified and what they should be set to.
-        e_ident[EI_OSABI] = 0x13
-        e_ident[EI_ABIVERSION] = 0xFF
-    If these aren't changed, ChudOS will refuse to run the program.
-    (EI_OSABIx13 is undefined, so I use it for this kernel, EI_ABIVERSION is a second check)
-*/
-/*
-    const void* RawFile should point to an unparsed elf file that has been completely loaded into memory from the HDD
-*/
-void* LoadElf(const void* RawFile){
-    ElfHeader64 elf_header;
-    memcpy(&elf_header, RawFile, 64);
+int cur_pid = 0;
 
-    uint64_t base = rand64();
+uint8_t Program_Buffer[0x40000];
 
-    if(
-        elf_header.e_type != ET_DYN || 
-        elf_header.e_machine != EM_x86 || 
-        elf_header.e_ident.EI_OSABI != 0x13 || 
-        elf_header.e_ident.EI_ABIVERSION != 0xFF ||
-        elf_header.e_phentsize != 0x40
-    ){ return NULL; }
-
-    uint16_t e_phnum = elf_header.e_phnum;
-    for(int i = 0; i < e_phnum; i++){
-
+int FindFreePID(){
+    for(int i = 0; i < TASK_COUNT; i++){
+        if(TaskManager[i].Exists == false){
+            return i;
+        }
     }
+    return TASK_COUNT+1;
+}
+
+/**
+ * @brief Sets up the stack for a given task, make sure to set RSP and RSP before calling this
+ * @param task The task to set up the stack for
+ */
+int SetupTaskStack(Task* task, uint64_t* args){
+
+}
+
+/**
+ * @brief Registers a task in the task manager, also creates the tasks memory space
+ * @param base_vaddr The starting virtual address of the task
+ * @param entry_point The e_entry from the elf header
+ * @param page_count The amount of pages allocated to the program
+ * @param maxticks How many ticks (the priority) of the program. (See Tasks.h lines 7-9)
+ * @param stack_start The beginning virtual address of the programs stack.
+ * @return 0 = Success
+ * @return 1 = No free PID's
+ * @return 2 = Couldn't create stack
+ */
+int RegisterTask(uint64_t base_vaddr, uint64_t entry_point, uint64_t page_count, uint8_t maxticks, uint64_t stack_start){
+    int free = FindFreePID();
+    if(free == TASK_COUNT+1){ return 1; }
+    Task* cur_task = (Task*)&TaskManager[free];
+    memset(cur_task, 0, sizeof(Task)); // zero out the task
+    cur_task->MemoryData.BaseVirtualAddress = base_vaddr;
+    cur_task->MemoryData.PageCount = page_count;
+    cur_task->MaxTicks = maxticks;
+    cur_task->ProcessState = READY_PROCESS_STATE;
+    cur_task->SavedRegisters.cs = 0x18 | 0x3; // user code segment
+    cur_task->SavedRegisters.rsp = stack_start;
+    cur_task->SavedRegisters.rbp = stack_start;
+    cur_task->SavedRegisters.rip = entry_point+base_vaddr;
+    cur_task->SavedRegisters.ss = 0x20 | 0x3; // user data segment
+    uint64_t pml4 = Create_User_Memory();
+    cur_task->Base_PML4 = pml4;
+    cur_task->Exists = true;
+    #ifdef DEBUG
+        SetTextColor(LCYAN, BLACK);
+        printf("Registered a task\n\tPID = %x\n\tBASE_ADDR = %x\n\tENTRY = %x\n", free, base_vaddr, entry_point+base_vaddr);
+        SetTextColor(WHITE, BLACK);
+    #endif
+    return 0;
+}
+
+/**
+ * @brief Dumps a formatted 64 bit ELF program header with value names
+ * 
+ */
+void ELF_DumpProgramHeader(ProgramHeader64* header){
+    SetTextColor(LCYAN, BLACK);
+    printf("Dumping ELF 64 bit Program Header\nDATA:\n");
+    printf("\tTYPE: %x\n", header->p_type);
+    printf("\tFLAGS: %x\n", header->p_flags);
+    printf("\tOFFSET: %x\n", header->p_offset);
+    printf("\tVADDR: %x\n", header->p_vaddr);
+    printf("\tPADDR: %x\n", header->p_paddr);
+    printf("\tFILE SIZE: %x\n", header->p_filesz);
+    printf("\tMEM SIZE: %x\n", header->p_memsz);
+    printf("\tALIGN: %x\n", header->p_align);
+    SetTextColor(WHITE, BLACK);
+}
+
+/**
+ * @brief Dumps a formatted 64 bit ELF header with value names (takes up a LOT!!! of screen space)
+ * @param header pointer to a 64 bit Elf header struct
+ */
+void ELF_DumpHeader(ElfHeader64* header){
+    SetTextColor(LCYAN, BLACK);
+    printf("Dumping ELF 64 bit Header\nIDENTIFIER:\n");
+    printf("\tMAGIC: %x\n", header->e_ident.magic[0]);
+    printf("\tSTR: %c%c%c\n", header->e_ident.magic[1],header->e_ident.magic[2],header->e_ident.magic[3]);
+    printf("\tCLASS: %x\n", header->e_ident.EI_CLASS);
+    printf("\tDATA: %x\n", header->e_ident.EI_DATA);
+    printf("\tVERSION: %x\n", header->e_ident.EI_VERSION);
+    printf("\tOS_ABI: %x\n", header->e_ident.EI_OSABI);
+    printf("DATA:\n");
+    printf("\tTYPE: %x\n", header->e_type);
+    printf("\tMACHINE: %x\n", header->e_machine);
+    printf("\tVERSION: %x\n", header->e_version);
+    printf("\tENTRY: %x\n", header->e_entry);
+    printf("\tPH_OFF: %x\n", header->e_phoff);
+    printf("\tFLAGS: %x\n", header->e_flags);
+    printf("\tHEADER SIZE: %x\n", header->e_ehsize);
+    printf("\tPROGRAM HEADER SIZE: %x\n", header->e_phentsize);
+    printf("\tPROGRAM HEADER COUNT: %x\n", header->e_phnum);
+    SetTextColor(WHITE, BLACK);
+}
+
+/**
+    * @brief Loads a program into memory and registers it.
+    * @param Drive The drive number that should be read from
+    * @param LBA The starting LBA of the file
+    * @param Program_Size The size (in bytes) of the program
+*/
+void* LoadElf(uint8_t Drive, uint64_t LBA, size_t Program_Size){
+    #ifdef DEBUG
+        SetTextColor(LCYAN, BLACK);
+        printf("Reading ELF file from drive %i LBA %i with a size of %i\n", Drive, LBA, Program_Size);
+    #endif
+    
+    if(Drive < 0x80){
+        FLOPPY_Read_LBA(Drive, LBA, (uint64_t)Program_Buffer, Program_Size);
+    }
+
+    ElfHeader64* elf_header = (ElfHeader64*)Program_Buffer;
+    
+    if(
+        elf_header->e_type != ET_EXEC || 
+        elf_header->e_machine != EM_x86_64 || 
+        elf_header->e_phentsize != 0x38
+    ){ 
+        #ifdef DEBUG
+            SetTextColor(LCYAN, BLACK);
+            printf("E_TYPE: %i\nEXPECTED: %i\nE_MACHINE: %i\nEXPECTED: %i\nE_PHENTSIZE: %x\nEXPECTED: %x\n", elf_header->e_type, ET_EXEC, elf_header->e_machine, EM_x86_64, elf_header->e_phentsize, 0x38);
+        #endif
+        return NULL;
+    }
+
+    #ifdef DEBUG
+        SetTextColor(LCYAN, BLACK);
+        printf("Real program\n");
+        ELF_DumpHeader(elf_header);
+    #endif
+
+    // get the header table at the offset defined in the header
+    ProgramHeader64* headers = (ProgramHeader64*)(Program_Buffer + elf_header->e_phoff);
+
+    ProgramHeader64* cur_header;
+
+    uint64_t base = 0x500000;
+    uint64_t stack_base = base;
+    printf("BASE: %x\n", base);
+    //return NULL;
+
+    memset((void*)base, 0, 0x1000);
+
+    // alloc the stack
+    PageDetails stackpage;
+    PageEntries free = FindNextFreePhysical();
+    PagePermissions stackperms;
+    stackperms.flags = USER_FLAGS;
+    stackperms.Execute_Disable = false;
+
+    stackpage.physical_address = CalculatePageAddress(&free);
+    stackpage.virtual_address = base & ~0xFFF;
+    stackpage.flags = stackperms;
+            
+    alloc_page(&stackpage);
+
+    base+= 0x1000; // skip the stack
+
+    uint64_t start_base = base;
+    
+    
+    // loop through the program headers and load them into memory
+    uint16_t e_phnum = elf_header->e_phnum;
+    for(int i = 0; i < e_phnum; i++){
+        cur_header = &headers[i];
+
+        #ifdef DEBUG
+            ELF_DumpProgramHeader(cur_header);
+        #endif
+
+        if(cur_header->p_memsz < 0x1000){
+            PageDetails newpage;
+            PageEntries free = FindNextFreePhysical();
+            PagePermissions perms;
+            perms.flags = USER_FLAGS;
+            perms.Execute_Disable = false;
+
+            newpage.physical_address = CalculatePageAddress(&free);
+            newpage.virtual_address = (base+(cur_header->p_vaddr)) & ~0xFFF;
+            newpage.flags = perms;
+            
+            alloc_page(&newpage);
+        }else{
+            int page_count = cur_header->p_memsz / 0x1000;
+            int extra = cur_header->p_memsz % 0x1000;
+            for(int i = 0; i < page_count + (extra > 0 ? 1 : 0); i++){
+                PageDetails newpage;
+                PageEntries free = FindNextFreePhysical();
+                PagePermissions perms;
+                perms.flags = USER_FLAGS;
+                perms.Execute_Disable = false;
+
+                newpage.physical_address = CalculatePageAddress(&free);
+                newpage.virtual_address = ((base+(cur_header->p_vaddr)) & ~0xFFF) + (i * 0x1000);
+                newpage.flags = perms;
+                
+                alloc_page(&newpage);
+            }
+        }
+
+        memcpy((void*)(base+cur_header->p_vaddr), (void*)(Program_Buffer+cur_header->p_offset), cur_header->p_memsz);
+
+        base+=cur_header->p_memsz;
+    }
+
+    RegisterTask(start_base, elf_header->e_entry, 5, USER_PRIORITY, stack_base);
+
+    return (void*)base;
+}
+
+int TASKMGR_get_current(){
+    return cur_pid;
+}
+
+void TASKMGR_set_current(int pid){
+    cur_pid = pid;
 }

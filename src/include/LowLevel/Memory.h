@@ -6,14 +6,13 @@
 #include "Display/VGA.h"
 #include "stdbool.h"
 
-
 /*
     This header provides functions for the allocation of pages in virtual memory,
     along with various structs defining how memory should behave. Critical in the
     kernel as it has no real job without memory allocation and user programs.
 */
 
-#define VIRTUAL_MEMORY_BARRIER 0x100000000 // kernel is this address, user is above. 4 gib.
+#define VIRTUAL_MEMORY_BARRIER 0x300000 // kernel is this address, user is above
 
 #define KERNEL_FLAGS 0b00000011
 #define KERNEL_FLAGS_UNCACHEABLE 0b00010011
@@ -97,10 +96,9 @@ typedef struct{
     uint16_t Page_Offset;
 }PageEntries ;
 
-typedef struct{
+struct Task_S{
     uint32_t ProcessID;
     TaskMemoryDefinition MemoryData;
-    HeapDesignator HeapData;
     InterruptRegisters SavedRegisters; // grabbed from "IDT.h", also used when an interrupt is triggered from userland
     uint8_t MaxTicks; // how many cycles a task can run for, tasks run with sudo have 40, normal user tasks 20, and background taks 10
     uint8_t UsedTicks; // this is so the scheduler can keep track of how many ticks the program has been running for before switching
@@ -108,10 +106,30 @@ typedef struct{
     uint16_t WaitingReason; // defines why the program is waiting if the state is set to that.
     uint32_t SleepCycle; // how many cycles the program has been sleeping, used so the task can request to sleep
     uint32_t RequestedSleepCycle; // the program sets this so it "sleeps"
-    bool Available;
-}Task ;
+    uint64_t Base_PML4; // the base PML4 address that will be loaded into CR3
+    bool Exists; // set to true if the task is in existence
+};
 
-extern Task KernelTask;
+typedef struct Task_S Task;
+
+// for allocating new memory
+struct PageTable{
+    uint64_t entries[512];
+}__attribute__((aligned(4096)));
+
+struct PageDirectory{
+    uint64_t entries[512];
+}__attribute__((aligned(4096)));
+
+struct PageDirectoryPointerTable{
+    uint64_t entries[512];
+}__attribute__((aligned(4096)));
+
+struct PageMapLevel4{
+    uint64_t entries[512];
+}__attribute__((aligned(4096)));
+
+extern Task* KernelTask;
 extern Task TaskManager[512];
 
 
@@ -147,16 +165,16 @@ PageDetails ParsePTE(uint64_t* PTE);
 
 void* malloc_specific(Task* TaskDetails, uint64_t RequestedAddress, PagePermissions* permissions);
 
-void* create_pdpt();
-
-void* create_pd();
-
 void mem_bitmap_dump(uint16_t PT);
-
-void* find_free_pdpt();
-
-void* find_free_pml4();
 
 PageEntries FindNextFreePhysical();
 
 void Enumerate_E820();
+
+void mem_set_cr3(uint64_t addr);
+
+uint64_t Create_User_Memory();
+
+uint64_t phys_addr(void* pointer);
+
+extern uint64_t Kernel_PML4_Physical;

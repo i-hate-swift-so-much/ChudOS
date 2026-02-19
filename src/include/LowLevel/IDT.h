@@ -25,7 +25,7 @@ struct InterruptRegisters_s{
     uint64_t rax;
 
     // Pushed automatically by CPU:
-    uint64_t eip;
+    uint64_t rip;
     uint64_t cs;
     uint64_t rflags;
     uint64_t rsp;

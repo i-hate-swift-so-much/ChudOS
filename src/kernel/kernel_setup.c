@@ -15,7 +15,7 @@ void memcpy(void* dest, void* src, size_t size){
 
 void kernel_setup_main(){
     //copy the 64 kibibyte kernel to the new address
-    memcpy((void*)KERNEL_NEW, (void*)KERNEL_LOAD, 65024);
+    memcpy((void*)KERNEL_NEW, (void*)KERNEL_LOAD, 0x30000);
 
     uint64_t thing = KERNEL_NEW;
     __asm__ volatile(
