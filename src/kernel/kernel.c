@@ -42,8 +42,8 @@ void kernel_startup(){
     #endif
     SetIDTEntry(0x06, (uint64_t)invalid_opcode_stub, 0x08, 0x8F, 0x04);
     SetIDTEntry(0x0D, (uint64_t)gpf_stub, 0x08, 0x8F, 0x04);
-    SetIDTEntry(0x0E, (uint64_t)page_fault_stub, 0x08, 0x8F, 0x04);
-    SetIDTEntry(0x80, (uint64_t)isr80_stub, 0x08, 0x8E, 0x03);
+    SetIDTEntry(0x0E, (uint64_t)page_fault_stub, 0x08, 0x8F, 0x05);
+    SetIDTEntry(0x80, (uint64_t)isr80_stub, 0x08, 0xEF, 0x03);
     SetIDTEntry(0x20, (uint64_t)timer_interrupt_stub, 0x08, 0x8E, 0x02);
     SetIDTEntry(0x28, (uint64_t)sync_time_stub, 0x08, 0x8E, 0x01);
     LoadIDT();
@@ -56,11 +56,13 @@ void kernel_startup(){
     SetIDTEntry(0x21, (uint64_t)keyboard_stub, 0x08, 0x8E, 0x00);
     pic_unmask(0x01); // Keyboard
     print_success_snapshot("SUCCESS\n", 0);
+
     PrintCycles();
     print(" Enabling Interrupts ", 0);
     take_print_snapshot();
     asm volatile("sti");
     print_success_snapshot("SUCCESS\n", 0);
+
     PrintCycles();
     print(" Setting up paging ", 0);
     take_print_snapshot();
@@ -125,19 +127,17 @@ void kernel_startup(){
         print_error_snapshot("FAILURE", 0);
     }
 
-    printf("ChudOS Version %i.%i.%i:%i%c\n", VERSION_MAJOR, VERSION_MINOR, VERSION_PATCH, BUILD, BUILD_CLASS);
-    
     PrintCycles();
     printf(" Creating Shell Task\n");
 
     // begin setting up the shell
-    LoadElf(0, 3000, 4278); // the shell is at LBA 3000 and 4278 bytes in length
+    void* load = LoadElf(0, 3000, 4278); // the shell is at LBA 3000 and 4278 bytes in length
 
-    //ClearScreen();
+    ClearScreen();
 
     tasks_enabled = true;
 
-
+    //printf("ChudOS Version %i.%i.%i:%i%c\n", VERSION_MAJOR, VERSION_MINOR, VERSION_PATCH, BUILD, BUILD_CLASS);
 
     while (1){
 

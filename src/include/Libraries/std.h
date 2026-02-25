@@ -1,15 +1,16 @@
 #pragma once
 #include <stddef.h>
 #include "stdarg.h" // for variadic functions
+#include "stdint.h"
 
 extern int snapshotX;
 extern int snapshotY;
 
 void print(const char* toPrint, int length);
 void cls();
-void int_to_char_array(int n, char* buffer, size_t buffer_size, int padding);
-void int_to_char_array_hex(int n, char* buffer, size_t buffer_size, int padding);
-void int_to_char_array_binary(int n, char* buffer, size_t buffer_size, int padding);
+void int_to_char_array(uint64_t n, char* buffer, size_t buffer_size, int padding);
+void int_to_char_array_hex(uint64_t n, char* buffer, size_t buffer_size, int padding);
+void int_to_char_array_binary(uint64_t n, char* buffer, size_t buffer_size, int padding);
 void pad_string(int padding, char* buffer, int buffer_size, char filler, int start);
 void print_centered(const char* toPrint, int length);
 void setCursor(int x, int y);

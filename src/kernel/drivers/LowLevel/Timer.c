@@ -17,10 +17,16 @@ void task_switch_frame(InterruptRegisters* dest, InterruptRegisters* src){
     memcpy((void*)dest, (void*)src, sizeof(InterruptRegisters));
 }
 
+/**
+ * @brief Switches the current PID to the target, also sets the CR3.
+ */
 void task_switch(int pid){
     Task* task = &TaskManager[pid];
     
     TASKMGR_set_current(pid);
+
+    uint64_t TASK_CR3 = task->Base_PML4;
+    mem_set_cr3(TASK_CR3);
 }
 
 int find_next_task(int cur_pid){
@@ -78,7 +84,7 @@ void TimerInterrupt(InterruptRegisters* frame){
         Task* cur_task = (Task*)&TaskManager[cur_pid];
 
         // update cur tasks regs
-        task_switch_frame((InterruptRegisters*)&cur_task->SavedRegisters, frame);
+        //task_switch_frame((InterruptRegisters*)&cur_task->SavedRegisters, frame);
 
         if(cur_task->UsedTicks >= cur_task->MaxTicks){
             cur_task->UsedTicks = 0;
@@ -90,12 +96,11 @@ void TimerInterrupt(InterruptRegisters* frame){
 
             // make it so we return with the correct next task's info
             task_switch_frame(frame, (InterruptRegisters*)&next_task->SavedRegisters);
-
+            
             task_switch(next_pid);
         }else{
-            cur_task->UsedTicks++;
+            if(cur_pid != 1){ cur_task->UsedTicks++; }
         }
-
     }
     
     pic_send_eoi(0x00);

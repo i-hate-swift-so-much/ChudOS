@@ -2,7 +2,7 @@
 #include "stddef.h"
 
 #define KERNEL_LOAD 0x10000
-#define KERNEL_NEW 0x100000
+#define KERNEL_NEW 0xffff800000100000
 
 void memcpy(void* dest, void* src, size_t size){
     uint8_t* src2 = (uint8_t*)src;

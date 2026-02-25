@@ -115,7 +115,8 @@ start_paging64:
     call fill_pt ; allocate 16 MB of ram to the kernel
     call fill_pd
     call fill_pdpt
-    call fill_pml4
+    call fill_pml4_l
+    call fill_pml4_h
 
     mov eax, pml4_table
     mov cr3, eax
@@ -142,7 +143,7 @@ start_paging64:
 
     jmp CODE_SEL:start64
 
-fill_pml4:
+fill_pml4_l:
     mov edi, pml4_table
     mov eax, pdpt_kernel
     mov ecx, 1
@@ -159,7 +160,7 @@ fill_pml4:
 
     .loop_code:  
         cmp ecx, 0
-        je fill_pml4.end_loop
+        je fill_pml4_l.end_loop
 
         push eax
         or eax, 0b00000011
@@ -171,7 +172,42 @@ fill_pml4:
         add eax, 0x1000
         sub ecx, 1
 
-        jmp fill_pml4.loop_code
+        jmp fill_pml4_l.loop_code
+        
+    .end_loop:
+        ret
+
+fill_pml4_h:
+    mov edi, pml4_table
+    add edi, 2048 ; entry 511 of the pml4, means higher half kernel
+    mov eax, pdpt_kernel
+    mov ecx, 1
+    xor edx, edx
+
+    ; first entry is user
+    push eax
+    or eax, 0b00000011
+    mov [edi], eax
+    mov [edi+4], edx ; edx is zero
+    pop eax
+
+    ret
+
+    .loop_code:  
+        cmp ecx, 0
+        je fill_pml4_h.end_loop
+
+        push eax
+        or eax, 0b00000011
+        mov [edi], eax
+        mov [edi+4], edx ; edx is zero
+        pop eax
+
+        add edi, 8
+        add eax, 0x1000
+        sub ecx, 1
+
+        jmp fill_pml4_h.loop_code
         
     .end_loop:
         ret
@@ -218,7 +254,7 @@ fill_pd:
 
     ; kernel
     .kfill_loop:
-        cmp ecx, 32
+        cmp ecx, 64
         je fill_pd.kloop_done
 
         push eax
@@ -244,9 +280,9 @@ fill_pt:
     xor edx, edx
     mov ecx, 0
 
-    ; fills 24 page tables (64 MiB)
+    ; fills 64 page tables (64 MiB)
     .kfill_loop:
-        cmp ecx, 12288
+        cmp ecx, 32768
         je fill_pt.kfill_done
 
         push eax
@@ -269,7 +305,7 @@ TSS_start:
     .Reserved_0:
         dd 0x00
     .RSP0:
-        dq 0xFFFF0
+        dq 0xffff800000FFFF00
     .RSP1:
         dq 0x00000
     .RSP2:
@@ -277,19 +313,19 @@ TSS_start:
     .Reserved_1:
         dq 0x00000
     .IST1:
-        dq 0x3FFF0
+        dq 0xffff80000003FFF0
     .IST2:
-        dq 0x3EFF0
+        dq 0xffff80000003EFF0
     .IST3:
-        dq 0x3DFF0
+        dq 0xffff80000003DFF0
     .IST4:
-        dq 0x3BFF0
+        dq 0xffff80000003CFF0
     .IST5:
-        dq 0x3CFF0
+        dq 0xffff80000003BFF0
     .IST6:
-        dq 0x3AFF0
+        dq 0xffff80000003AFF0
     .IST7:
-        dq 0x39FF0
+        dq 0xffff800000039FF0
     .Reserved_2:
         dq 0x00000
     .Reserved_3:
@@ -349,6 +385,10 @@ gdt64_descriptor:
     dw gdt64_end - gdt64_start - 1
     dq gdt64_start
 
+gdt64_high:
+    dw gdt64_end - gdt64_start - 1
+    .start: dq 0
+
 make_tss_entry:
     mov eax, TSS_size
     mov [tss_limit0], ax
@@ -376,9 +416,46 @@ make_tss_entry:
 
     ret
 
-
 ; long mode with 4 level paging 🤤
 [bits 64]
+HIGHER_HALF_OFFSET equ 0xffff800000000000
+
+make_tss_entry_high:
+    mov rax, TSS_size
+    mov [tss_limit0], ax
+
+    mov rax, TSS_start
+    mov rbx, HIGHER_HALF_OFFSET
+    add rax, rbx
+    mov [tss_base0], ax
+
+    mov rax, TSS_start
+    mov rbx, HIGHER_HALF_OFFSET
+    add rax, rbx
+    shr rax, 16
+    mov [tss_base1], al
+
+    mov rax, 0b00100000
+    mov rbx, TSS_size
+    shr rbx, 16
+    and rbx, 0b1111
+    or rax, rbx
+    mov [tss_flags], al
+
+    mov rax, TSS_start
+    mov rbx, HIGHER_HALF_OFFSET
+    add rax, rbx
+    shr rax, 24
+    mov [tss_base2], al
+
+    mov rax, TSS_start ; high mem base, since the tss is so low in memory the high 32 bits aren't affected at all
+    mov rbx, HIGHER_HALF_OFFSET
+    add rax, rbx
+    shr rax, 32
+    mov [tss_base3], eax
+
+    ret
+
 start64:
     mov rsp, 0x00001000
     mov ax, DATA_SEL
@@ -390,6 +467,15 @@ start64:
     mov rbp, 0x00001000
 
     cli
+
+    ; since the kernel is mapped in the higher half, we have to change GDT and IDT to point at the new higher address
+
+    mov rax, gdt64_start
+    mov rbx, HIGHER_HALF_OFFSET
+    add rax, rbx
+    mov [gdt64_high.start], rax
+
+    lgdt [gdt64_high]
 
     mov rax, [kernel_arg1]
     mov rbx, [kernel_arg2]
@@ -417,6 +503,5 @@ pdpt_kernel:
 
 pd_table_kernel:
     resq 512 ; blank entries
-
 pt:
-    resq 8192
+    resq 32768

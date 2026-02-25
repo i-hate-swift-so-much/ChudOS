@@ -8,7 +8,7 @@
 .global keyboard_stub
 .global ahci_interrupt_stub
 .global floppy_drive_stub
-.extern handle_syscall
+.extern handle_syscallq
 .extern KernelPanic
 .extern HandlePageFault
 .extern GeneralProtectionFault
@@ -74,10 +74,6 @@
                 jmp 3f
         2:
                 popq %rax
-                pushq %rax
-                movq 16(%rsp), %rax
-                movq %rax, check_priv
-                popq %rax
         3:
 .endm
 
@@ -101,10 +97,6 @@
                 jmp 3f
         2:
                 popq %rax
-                pushq %rax
-                movq 16(%rsp), %rax
-                movq %rax, check_priv
-                popq %rax
         3:
 .endm
 
@@ -124,7 +116,7 @@ isr80_stub:
 
         movq %rsp, %rdi
 
-        call handle_syscall
+        callq handle_syscall
 
         add $16, %rsp
 
@@ -147,7 +139,7 @@ kernel_panic_stub:
         pushq $0x81 // interrupt number, used when kernel panic has unidentified cause
 
         mov %rsp, %rdi // pointer to interrupts struct
-        call KernelPanic // C++ handler
+        callq KernelPanic // C++ handler
 
         add $16, %rsp // skip the cr2 and interrupt number
 
@@ -171,10 +163,10 @@ invalid_opcode_stub:
 
         pushq $0x06
 
-        mov %rsp, %rdi
-        call InvalidOpcode
+        movq %rsp, %rdi
+        callq InvalidOpcode
 
-        add $16, %rsp
+        addq $16, %rsp
 
         pop_regs
 
@@ -197,7 +189,7 @@ gpf_stub:
         pushq $0x0D
 
         movq %rsp, %rdi
-        call GeneralProtectionFault
+        callq GeneralProtectionFault
 
         addq $16, %rsp
 
@@ -212,10 +204,10 @@ gpf_stub:
         iretq
 
 page_fault_stub:
-        cli
-        
         cld
         
+        cli
+
         check_cpl_err
 
         push_regs
@@ -226,7 +218,7 @@ page_fault_stub:
         pushq $0x0E
 
         movq %rsp, %rdi
-        call HandlePageFault
+        callq HandlePageFault
 
         addq $16, %rsp
 
@@ -253,7 +245,7 @@ timer_interrupt_stub:
         pushq $0x20
 
         movq %rsp, %rdi
-        call TimerInterrupt
+        callq TimerInterrupt
 
         add $16, %rsp // skip the previous two pushes
 
@@ -274,7 +266,7 @@ sync_time_stub:
         pushq $0x28
 
         movq %rsp, %rdi
-        call SyncTime
+        callq SyncTime
 
         add $16, %rsp
 
@@ -297,7 +289,7 @@ keyboard_stub:
         pushq $0x01
         
         movq %rsp, %rdi
-        call HandleKeyboardInterrupt
+        callq HandleKeyboardInterrupt
 
         add $16, %rsp
 
@@ -320,7 +312,7 @@ ahci_interrupt_stub:
         pushq $0x00
         
         movq %rsp, %rdi
-        call HandleAHCIInterrupt
+        callq HandleAHCIInterrupt
 
         add $16, %rsp
 
@@ -343,7 +335,7 @@ floppy_drive_stub:
         pushq $0x00
         
         movq %rsp, %rdi
-        call FLOPPY_IRQ
+        callq FLOPPY_IRQ
 
         add $16, %rsp
 
@@ -354,6 +346,3 @@ floppy_drive_stub:
         iretq
 
 
-.section .bss
-
-.lcomm check_priv, 8

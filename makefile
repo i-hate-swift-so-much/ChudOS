@@ -16,7 +16,7 @@ c = x86_64-elf-gcc
 asflags ?= -f bin
 entryasflags ?= -f elf64
 ldflags_kernel ?= -Tkernel64.ld
-cflags ?= -m64 -I src/include -ffreestanding -nostdlib -c -mno-red-zone
+cflags ?= -m64 -I src/include -ffreestanding -nostdlib -c -mno-red-zone -mcmodel=large
 
 output_img := bin/ChudOS.img
 

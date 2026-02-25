@@ -15,8 +15,11 @@ void LoadIDT(){
 void SetIDTEntry(uint8_t entry_num, uint64_t handler_address, uint16_t selector, uint8_t flags, uint8_t ist) {
     #ifdef DEBUG
         if(handler_address != (uint64_t)kernel_panic_stub){
-            char test_char[32];
+            char test_char[64];
             int_to_char_array(entry_num, test_char, sizeof(test_char), 5);
+            print_debug(test_char, 0);
+            print_debug(":", 0);
+            int_to_char_array_hex(handler_address, test_char, sizeof(test_char), 8);
             print_debug(test_char, 0);
             print_debug(":", 0);
             int_to_char_array(selector, test_char, sizeof(test_char), 8);
@@ -33,7 +36,7 @@ void SetIDTEntry(uint8_t entry_num, uint64_t handler_address, uint16_t selector,
     
     kernel_idt[entry_num].offset_low = handler_address & 0xFFFF;
     kernel_idt[entry_num].selector = selector;
-    kernel_idt[entry_num].ist = ist & 0x111;
+    kernel_idt[entry_num].ist = ist & 0b111;
     kernel_idt[entry_num].flags = flags;
     kernel_idt[entry_num].offset_middle = (handler_address >> 16) & 0xFFFF;
     kernel_idt[entry_num].offset_high = (handler_address >> 32) & 0xFFFFFFFF;

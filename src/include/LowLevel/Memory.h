@@ -12,7 +12,7 @@
     kernel as it has no real job without memory allocation and user programs.
 */
 
-#define VIRTUAL_MEMORY_BARRIER 0x300000 // kernel is this address, user is above
+#define VIRTUAL_MEMORY_BARRIER 0xffff800000000000 // kernel is this address, user is above
 
 #define KERNEL_FLAGS 0b00000011
 #define KERNEL_FLAGS_UNCACHEABLE 0b00010011
@@ -36,7 +36,7 @@ typedef struct{
 // Defines 1 GB of Physical Memory
 struct PhysicalMemoryPageDescriptor_s{
     PhysicalMemoryTable tables[512];
-}__attribute__((packed));
+};
 
 typedef struct PhysicalMemoryPageDescriptor_s PhysicalMemoryPageDescriptor;
 
@@ -44,9 +44,15 @@ typedef struct PhysicalMemoryPageDescriptor_s PhysicalMemoryPageDescriptor;
 // Defines 512 GB of physical memory
 struct PhysicalMemoryPageDescriptorTable_s{
     PhysicalMemoryPageDescriptor descriptors[512];
-}__attribute__((packed));  
+};
 
 typedef struct PhysicalMemoryPageDescriptorTable_s PhysicalMemoryPageDescriptorTable;
+
+struct PhysicalMemoryMapLevel4_s{
+    PhysicalMemoryPageDescriptorTable pagedescriptors[2];
+};
+
+typedef struct PhysicalMemoryMapLevel4_s PhysicalMemoryMapLevel4;
 
 struct PagePermissions_s{
     uint16_t flags; // directly maps to bits 0 through 7 of a page table entry
@@ -132,10 +138,11 @@ struct PageMapLevel4{
 extern Task* KernelTask;
 extern Task TaskManager[512];
 
+extern uint64_t PhysicalPagesUsed;
 
-uint8_t mem_GetBit(uint16_t PageDescriptorTable, uint16_t PageTable, uint16_t Page);
+uint8_t mem_GetBit(uint16_t PageMapLevel4, uint16_t PageDescriptorTable, uint16_t PageTable, uint16_t Page);
 
-void mem_SetBit(uint16_t PageDescriptorTable, uint16_t PageTable, uint16_t Page);
+void mem_SetBit(uint16_t PageMapLevel4, uint16_t PageDescriptorTable, uint16_t PageTable, uint16_t Page);
 
 // literally memset except it copies by the word.
 void memsetw(void* dest, uint16_t value, size_t bytes);
@@ -178,3 +185,7 @@ uint64_t Create_User_Memory();
 uint64_t phys_addr(void* pointer);
 
 extern uint64_t Kernel_PML4_Physical;
+extern uint64_t PML4_Physical;
+
+extern uint64_t available_mem;
+extern uint64_t total_mem;

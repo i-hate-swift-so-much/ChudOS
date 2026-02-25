@@ -4,5 +4,5 @@
 
 double sqrt(double n);
 int round(int x);
-int abs(int n);
+uint64_t abs(uint64_t n);
 uint64_t rand64();

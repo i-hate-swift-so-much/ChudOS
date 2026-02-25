@@ -22,13 +22,9 @@ void handle_syscall(InterruptRegisters regs){
     uint64_t rcx_value = regs.rcx;
     uint64_t rdx_value = regs.rdx;
 
-    printf("SYSCALL\n");
-
-    printf("RAX: %x\nRBX: %x\nRCX: %x\nRDX: %x\n", rax_value, rbx_value, rcx_value, rdx_value);
-
     switch (rax_value){
         case 1:
-            // READ
+            // WRITE
             // rdx = descriptor
             // rcx = byte count
             // rbx = buffer address

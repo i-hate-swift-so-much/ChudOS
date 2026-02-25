@@ -3,7 +3,7 @@ rm -rf qemu.log
 
 stty -echo
 
-version_patch="3"
+version_patch="5"
 version_minor="1"
 version_major="0"
 

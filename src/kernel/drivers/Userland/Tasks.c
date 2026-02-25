@@ -24,7 +24,7 @@ int FindFreePID(){
  * @param task The task to set up the stack for
  */
 int SetupTaskStack(Task* task, uint64_t* args){
-
+    
 }
 
 /**
@@ -34,11 +34,12 @@ int SetupTaskStack(Task* task, uint64_t* args){
  * @param page_count The amount of pages allocated to the program
  * @param maxticks How many ticks (the priority) of the program. (See Tasks.h lines 7-9)
  * @param stack_start The beginning virtual address of the programs stack.
+ * @param PML4 The physical address of the new user memory created with Create_User_Memory()
  * @return 0 = Success
  * @return 1 = No free PID's
  * @return 2 = Couldn't create stack
  */
-int RegisterTask(uint64_t base_vaddr, uint64_t entry_point, uint64_t page_count, uint8_t maxticks, uint64_t stack_start){
+int RegisterTask(uint64_t base_vaddr, uint64_t entry_point, uint64_t page_count, uint8_t maxticks, uint64_t stack_start, uint64_t pml4){
     int free = FindFreePID();
     if(free == TASK_COUNT+1){ return 1; }
     Task* cur_task = (Task*)&TaskManager[free];
@@ -52,12 +53,11 @@ int RegisterTask(uint64_t base_vaddr, uint64_t entry_point, uint64_t page_count,
     cur_task->SavedRegisters.rbp = stack_start;
     cur_task->SavedRegisters.rip = entry_point+base_vaddr;
     cur_task->SavedRegisters.ss = 0x20 | 0x3; // user data segment
-    uint64_t pml4 = Create_User_Memory();
     cur_task->Base_PML4 = pml4;
     cur_task->Exists = true;
     #ifdef DEBUG
         SetTextColor(LCYAN, BLACK);
-        printf("Registered a task\n\tPID = %x\n\tBASE_ADDR = %x\n\tENTRY = %x\n", free, base_vaddr, entry_point+base_vaddr);
+        printf("Registered a task\n\tPID = %x\n\tBASE_ADDR = %x\n\tENTRY = %x\n\tBASE_PML4 = %x\n", free, base_vaddr, entry_point+base_vaddr, pml4);
         SetTextColor(WHITE, BLACK);
     #endif
     return 0;
@@ -114,6 +114,8 @@ void ELF_DumpHeader(ElfHeader64* header){
     * @param Program_Size The size (in bytes) of the program
 */
 void* LoadElf(uint8_t Drive, uint64_t LBA, size_t Program_Size){
+    memset(Program_Buffer, 0, 0x40000);
+    
     #ifdef DEBUG
         SetTextColor(LCYAN, BLACK);
         printf("Reading ELF file from drive %i LBA %i with a size of %i\n", Drive, LBA, Program_Size);
@@ -148,76 +150,101 @@ void* LoadElf(uint8_t Drive, uint64_t LBA, size_t Program_Size){
 
     ProgramHeader64* cur_header;
 
-    uint64_t base = 0x500000;
+    uint64_t NewPML4 = Create_User_Memory();
+    
+    uint64_t base = 0x9000000;
     uint64_t stack_base = base;
     printf("BASE: %x\n", base);
-    //return NULL;
 
-    memset((void*)base, 0, 0x1000);
+    uint64_t PrevPML4 = PML4_Physical;
+    
+    mem_set_cr3(NewPML4);
 
     // alloc the stack
     PageDetails stackpage;
     PageEntries free = FindNextFreePhysical();
     PagePermissions stackperms;
     stackperms.flags = USER_FLAGS;
-    stackperms.Execute_Disable = false;
+    stackperms.Execute_Disable = true;
 
     stackpage.physical_address = CalculatePageAddress(&free);
     stackpage.virtual_address = base & ~0xFFF;
     stackpage.flags = stackperms;
-            
+
+    printf("PHYS: %x\n", stackpage.physical_address);
+    printf("VIRT: %x\n", stackpage.virtual_address);
+
     alloc_page(&stackpage);
+
+    memset((void*)base, 0, 0x1000);
 
     base+= 0x1000; // skip the stack
 
     uint64_t start_base = base;
-    
-    
-    // loop through the program headers and load them into memory
+
+    uint64_t memsz = 0;
+
+    uint64_t start_offset = 0;
+        
+    // loop through program headers and adjust the memsz
     uint16_t e_phnum = elf_header->e_phnum;
     for(int i = 0; i < e_phnum; i++){
-        cur_header = &headers[i];
-
         #ifdef DEBUG
             ELF_DumpProgramHeader(cur_header);
         #endif
+        cur_header = &headers[i];
+        memsz += cur_header->p_memsz;
+        if(i == 0){ start_offset = cur_header->p_offset; }
+    }
+    printf("NUM: %x\nMEMSZ: %x\n", e_phnum, memsz);
 
-        if(cur_header->p_memsz < 0x1000){
-            PageDetails newpage;
-            PageEntries free = FindNextFreePhysical();
-            PagePermissions perms;
-            perms.flags = USER_FLAGS;
-            perms.Execute_Disable = false;
+    PagePermissions flags;
+    flags.flags = USER_FLAGS;
+    flags.Execute_Disable = false;
 
-            newpage.physical_address = CalculatePageAddress(&free);
-            newpage.virtual_address = (base+(cur_header->p_vaddr)) & ~0xFFF;
-            newpage.flags = perms;
-            
-            alloc_page(&newpage);
-        }else{
-            int page_count = cur_header->p_memsz / 0x1000;
-            int extra = cur_header->p_memsz % 0x1000;
-            for(int i = 0; i < page_count + (extra > 0 ? 1 : 0); i++){
-                PageDetails newpage;
-                PageEntries free = FindNextFreePhysical();
-                PagePermissions perms;
-                perms.flags = USER_FLAGS;
-                perms.Execute_Disable = false;
+    PageDetails to_alloc;
+    to_alloc.flags.flags = USER_FLAGS;
+    to_alloc.flags.Execute_Disable = false;
 
-                newpage.physical_address = CalculatePageAddress(&free);
-                newpage.virtual_address = ((base+(cur_header->p_vaddr)) & ~0xFFF) + (i * 0x1000);
-                newpage.flags = perms;
-                
-                alloc_page(&newpage);
-            }
-        }
+    for(int i = 0; i < memsz/0x1000; i++){
+        PageEntries free = FindNextFreePhysical();
+        to_alloc.physical_address = CalculatePageAddress(&free);
+        to_alloc.virtual_address = base;
 
-        memcpy((void*)(base+cur_header->p_vaddr), (void*)(Program_Buffer+cur_header->p_offset), cur_header->p_memsz);
+        #ifdef DEBUG
+            SetTextColor(LCYAN, BLACK);
+            printf("User Page Address: %x (DIV)\n", base);
+            SetTextColor(WHITE, BLACK);
+        #endif
 
-        base+=cur_header->p_memsz;
+        alloc_page(&to_alloc);
+
+        base+=0x1000;
     }
 
-    RegisterTask(start_base, elf_header->e_entry, 5, USER_PRIORITY, stack_base);
+    if(memsz % 0x1000 > 0){
+        PageEntries free = FindNextFreePhysical();
+        to_alloc.physical_address = CalculatePageAddress(&free);
+        to_alloc.virtual_address = base;
+
+        #ifdef DEBUG
+            SetTextColor(LCYAN, BLACK);
+            printf("User Page Address: %x (MOD)\n", base);
+        #endif
+
+        alloc_page(&to_alloc);
+    }
+
+    memcpy((void*)(start_base), &Program_Buffer[start_offset], memsz);
+
+    #ifdef DEBUG
+        printf("Copied\n");
+        SetTextColor(WHITE, BLACK);
+    #endif
+
+    RegisterTask(start_base, elf_header->e_entry, 5, USER_PRIORITY, stack_base+4088, NewPML4);
+
+    mem_set_cr3(PrevPML4);
 
     return (void*)base;
 }

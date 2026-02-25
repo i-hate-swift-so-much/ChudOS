@@ -3,7 +3,7 @@
 
 #define VGA_WIDTH 80
 #define VGA_HEIGHT 25
-#define VGA_ADDRESS 0xB8000
+#define VGA_ADDRESS 0xB8000 + 0xFFFF800000000000 // account for the higher half
 
 uint8_t* vga_buffer = (uint8_t*)VGA_ADDRESS;
 

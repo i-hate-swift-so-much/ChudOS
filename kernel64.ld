@@ -4,7 +4,7 @@ ENTRY(_start)
 
 SECTIONS
 {
-    . = 0x00100000;
+    . = 0xffff800000100000;
     .text : { 
         *kernel_entry.o(.text)
         *(.text*) 

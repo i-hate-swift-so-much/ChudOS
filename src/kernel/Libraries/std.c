@@ -99,7 +99,7 @@ void cls(){
         curY = 0;
         ClearScreen();
     }
-void int_to_char_array(int n, char* buffer, size_t buffer_size, int padding) {
+void int_to_char_array(uint64_t n, char* buffer, size_t buffer_size, int padding) {
     if(padding == NULL){ padding = 0; }
     
     bool negative = n < 0;
@@ -117,7 +117,7 @@ void int_to_char_array(int n, char* buffer, size_t buffer_size, int padding) {
         return;
     }
 
-    int temp = n;
+    uint64_t temp = n;
     int digits = 0;
     while (temp != 0) {
         temp /= 10;
@@ -156,7 +156,7 @@ void int_to_char_array(int n, char* buffer, size_t buffer_size, int padding) {
             pad_string(padding, buffer, buffer_size, '0', 0);
         }
     }
-void int_to_char_array_hex(int n, char* buffer, size_t buffer_size, int padding) {    
+void int_to_char_array_hex(uint64_t n, char* buffer, size_t buffer_size, int padding) {    
     bool negative = n < 0;
         
         n = abs(n);
@@ -176,7 +176,7 @@ void int_to_char_array_hex(int n, char* buffer, size_t buffer_size, int padding)
             return;
         }
 
-        int temp = n;
+        uint64_t temp = n;
         int digits = 0;
         while (temp > 0) {
             temp /= 16;
@@ -196,7 +196,7 @@ void int_to_char_array_hex(int n, char* buffer, size_t buffer_size, int padding)
 
             // Convert with negative symbol
             for (int i = digits - 1; i >= 0; i--) {
-                int remainder = n % 16;
+                uint64_t remainder = n % 16;
                 char temp_char;
                 if(remainder < 10){
                     temp_char = (char)(remainder + '0');
@@ -217,7 +217,7 @@ void int_to_char_array_hex(int n, char* buffer, size_t buffer_size, int padding)
 
             // Convert without negative symbol
             for (int i = digits - 1; i >= 0; i--) {
-                int remainder = n % 16;
+                uint64_t remainder = n % 16;
                 char temp_char;
                 if(remainder < 10){
                     temp_char = (char)(remainder + '0');
@@ -233,7 +233,7 @@ void int_to_char_array_hex(int n, char* buffer, size_t buffer_size, int padding)
             pad_string(padding, buffer, buffer_size, '0', 2);
         }
     }
-void int_to_char_array_binary(int n, char* buffer, size_t buffer_size, int padding){
+void int_to_char_array_binary(uint64_t n, char* buffer, size_t buffer_size, int padding){
     if(padding == NULL){ padding = 0; }
     
     bool negative = n < 0;
@@ -255,7 +255,7 @@ void int_to_char_array_binary(int n, char* buffer, size_t buffer_size, int paddi
             return;
         }
 
-        int temp = n;
+        uint64_t temp = n;
         int digits = 0;
         while(temp > 0){
             temp /= 2;
@@ -272,7 +272,7 @@ void int_to_char_array_binary(int n, char* buffer, size_t buffer_size, int paddi
 
             // Convert with negative symbol
             for (int i = digits - 1; i >= 0; i--) {
-                int remainder = n % 2;
+                uint64_t remainder = n % 2;
                 char temp_char;
                 temp_char = (char)((remainder == 1 ? 1 : 0) + '0');
                 buffer[i+3] = temp_char;
@@ -289,7 +289,7 @@ void int_to_char_array_binary(int n, char* buffer, size_t buffer_size, int paddi
 
             // Convert without negative symbol
             for (int i = digits - 1; i >= 0; i--) {
-                int remainder = n % 2;
+                uint64_t remainder = n % 2;
                 char temp_char;
                 temp_char = (char)((remainder == 1 ? 1 : 0) + '0');
                 buffer[i+2] = temp_char;
@@ -505,15 +505,15 @@ void printf(const char* toPrint, ...){
                 //return;
                 break;
             case PRINTF_TYPE_INT:
-                int_to_char_array(va_arg(args, int), variable_print, sizeof(variable_print), 0);
+                int_to_char_array(va_arg(args, uint64_t), variable_print, sizeof(variable_print), 0);
                 print(variable_print, 0);
                 break;
             case PRINTF_TYPE_HEX:
-                int_to_char_array_hex(va_arg(args, int), variable_print, sizeof(variable_print), 0);
+                int_to_char_array_hex(va_arg(args, uint64_t), variable_print, sizeof(variable_print), 0);
                 print(variable_print, 0);
                 break;
             case PRINTF_TYPE_BIN:
-                int_to_char_array_binary(va_arg(args, int), variable_print, sizeof(variable_print), 0);
+                int_to_char_array_binary(va_arg(args, uint64_t), variable_print, sizeof(variable_print), 0);
                 print(variable_print, 0);
                 break;
             case PRINTF_TYPE_CHAR:

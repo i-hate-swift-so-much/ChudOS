@@ -4,7 +4,7 @@
 
 
 #define FLOPPY_IRQ_INDEX 0x26
-#define FLOPPY_INFO_STRUCT_ADDRESS 0x7DB8 // this is the address for info about the floppy which is written to by boot0.s
+#define FLOPPY_INFO_STRUCT_ADDRESS 0x7DB8 + 0xFFFF800000000000 // this is the address for info about the floppy which is written to by boot0.s
 
 // a 64 KiB bounce back buffer aligned to 64 KiB
 uint8_t FLOPPY_BOUNCE_BUFFER[0x10000]__attribute__((aligned(0x10000)))__attribute__((section(".under_16")));

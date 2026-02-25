@@ -30,6 +30,15 @@
 | FF | Failed to Read Boot1.s from Floppy |
 
 Figure 1 - Success/Error codes for boot0.s
+
+## v0.1.5
+### Changes
+1. Migrated the Kernel from being identity mapped to living in 511th entry of the PML4 table
+2. Implemented ELF loader
+a. Every process gets it's own PML4 table, and the 511th is memcpy'd from the Kernel's pages.
+3. Started work on task switching
+4. When allocating, if the memory handler cannot find the entry for a table, it will dynamically create more virtual memory.
+
 ### Todo
 1. Implement floppy support and retry loops for boot1.s
 2. Test [boot0](src/boot/boot0.s) on real hardware.

@@ -1,0 +1,5 @@
+1. Migrate Kernel to higher half | DONE
+    a. Notes:
+        I. Kernel virtual memory will start at the 512th entry of the PML4 table.
+        II. This means that the kernel's base virtual address will be 0xFFFF800000000000
+        III. boot2.s initializes paging to make the kernel mapped into both lower and upper memory. kernel_setup is called from the low address which then calls the high half kernel.

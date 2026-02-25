@@ -21,7 +21,7 @@ int round(int x){
     }
 }
 
-int abs(int n){
+uint64_t abs(uint64_t n){
     if (n < 0){
        return -n;
     }
