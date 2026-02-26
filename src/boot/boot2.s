@@ -2,6 +2,8 @@
 [bits 32]
 
 _start:
+    mov [drive_boot], rdi
+    
     mov [kernel_arg1], eax
     mov [kernel_arg2], ebx
 
@@ -479,6 +481,8 @@ start64:
 
     mov rax, [kernel_arg1]
     mov rbx, [kernel_arg2]
+    xor rdi, rdi
+    mov rdi, [drive_boot]
 
     mov byte [0xB8002], 'B'
     mov byte [0xB8003], 0x0F
@@ -493,6 +497,8 @@ buffer: dq 0x100000
 
 kernel_arg1: resb 8
 kernel_arg2: resb 8
+
+drive_boot: resb 4
 
 align 4096
 pml4_table: 

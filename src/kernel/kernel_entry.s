@@ -7,6 +7,8 @@ TSS_size equ TSS_end-TSS_start-1
 
 section .text
 
+movq [boot_drive], rdi
+
 jmp _start
 
 ; sets up the TSS entry in the gdt (0x28)
@@ -54,8 +56,9 @@ _start:
     mov ax, 0x28
     ltr ax
 
-    call kernel_main
+    movq rdi, [boot_drive]
 
+    call kernel_main
 hang:
     mov eax, 0xFFFFFFFF
     cli
@@ -143,3 +146,4 @@ TSS_start:
     .IOPB:
         dw 0x10000
 TSS_end:
+boot_drive: resb 8

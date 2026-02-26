@@ -20,7 +20,7 @@
     #define BUILD_CLASS 'b'
 #endif
 
-void kernel_startup(){
+void kernel_startup(uint64_t boot_drive){
     cls();
 
     PrintCycles();
@@ -131,11 +131,11 @@ void kernel_startup(){
     printf(" Creating Shell Task\n");
 
     // begin setting up the shell
-    void* load = LoadElf(0, 3000, 4278); // the shell is at LBA 3000 and 4278 bytes in length
+    LoadElf(0, 3000, 4278); // the shell is at LBA 3000 and 4278 bytes in length
 
-    ClearScreen();
+    //ClearScreen();
 
-    tasks_enabled = true;
+    //tasks_enabled = true;
 
     //printf("ChudOS Version %i.%i.%i:%i%c\n", VERSION_MAJOR, VERSION_MINOR, VERSION_PATCH, BUILD, BUILD_CLASS);
 
@@ -144,7 +144,7 @@ void kernel_startup(){
     }
 }
 
-void kernel_main(){ 
-    kernel_startup();
+void kernel_main(uint64_t BootDrive){ 
+    kernel_startup(BootDrive);
     return;
 }

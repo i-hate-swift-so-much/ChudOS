@@ -728,6 +728,8 @@ start_protected:
     mov ebx, [vbe_present]
     ;jmp halt32
 
+    mov edi, [drive_boot]
+
     jmp 0x60000 ; go to boot2
 
 halt32:
