@@ -149,20 +149,4 @@ void SyncTime(InterruptRegisters* frame){
     pic_unmask(0x00);
 
     enabled = true;
-
-    printf("\nSS: %x\n", frame->ss);
-    printf("RSP: %x\n", frame->rsp);
-    printf("RFLAGS: %x\n", frame->rflags);
-    printf("CS: %x\n", frame->cs);
-    printf("RIP: %x\n", frame->rip);
-
-    return;
-    
-    asm volatile(
-        "cli\n"
-        "1:\n\t"
-        "hlt\n"
-        "jmp 1b\n"
-        :::
-    );
 }

@@ -298,7 +298,7 @@ Paritition_Table:
         db 0x00              ; start head
         db 63              ; start sector + high cyl bits
         db 0x00              ; start cylinder
-        db 0x83              ; partition type
+        db 0x01              ; partition type
         db 0xFE              ; end head
         db 0xFF              ; end sector + high cyl bits
         db 0xFF              ; end cylinder
@@ -309,7 +309,7 @@ Paritition_Table:
         db 0xFE
         db 0xFF
         db 0xFF
-        db 0x83              ; partition type
+        db 0x74              ; partition type, reserved for experimental OSes
         db 0xFE
         db 0xFF
         db 0xFF

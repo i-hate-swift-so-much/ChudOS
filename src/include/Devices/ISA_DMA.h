@@ -45,6 +45,8 @@ enum ISA_DMA_REGISTERS{
     * @return int 0 on success, int 1 means the Channel is incorrect (cannot be 0 or 4)
 */
 static inline int ISA_DMA_Transfer_To(uint8_t Channel, uint32_t Buffer, uint32_t Count, bool Auto, uint8_t Mode){
+    Count-=1;
+    
     if (Channel == 0 || Channel == 4){ return 1; }
 
     enum ISA_DMA_REGISTERS mode_mas = MODE_MASTER; // channels < 3
@@ -169,11 +171,144 @@ static inline int ISA_DMA_Transfer_To(uint8_t Channel, uint32_t Buffer, uint32_t
 }
 
 /**
-    * @brief ets up a DMA transfer FROM memory TO a Peripheral on any channel
+    * @brief Sets up a DMA transfer FROM memory TO a Peripheral on any channel
     * @param Channel The channel that the peripheral is operating on.
     * @param Buffer The address (which is below the 16MB limit) that the data should be written to.
     * @param Count The amount of bytes to be transferred. Note that Count = 0 is equivalent to one byte
+    * @param Auto Whether or not the transfer should automatically reset to the programm address and count after a transfer completes
+    * @param Mode Which transfer mode the transfer should use. 0b00 = Transfer on Demand, 0b01 = Single, 0b10 = Block, 0b11 = Cascade
+    * @return int 0 on success, int 1 means the Channel is incorrect (cannot be 0 or 4)
 */
-static inline void ISA_DMA_Transfer_From(uint8_t Channel, uint32_t Buffer, uint32_t Count){
+static inline int ISA_DMA_Transfer_From(uint8_t Channel, uint32_t Buffer, uint32_t Count, bool Auto, uint8_t Mode){
+    #ifdef ISA_DMA_SANITY_CHECK
+        SetTextColor(LCYAN, BLACK);
+        printf("ISA DMA Transfer Initialized (M->P)\n\t");
+        printf("Channel: %i\n\t", Channel);
+        printf("Buffer: %x ", Buffer);
+        if(Buffer < 0x1000000){
+            printf("(GOOD)\n\t");
+        }else{
+            printf("(BAD)\n\t");
+        }
+        printf("Count: %x bytes\n\t", Count);
+        printf("Auto: %i\n\t", Auto);
+        printf("Mode: %b\n", Mode);
+        SetTextColor(WHITE, BLACK);
+    #endif
 
+    Count-=1;
+
+    if (Channel == 0 || Channel == 4){ return 1; }
+
+    enum ISA_DMA_REGISTERS mode_mas = MODE_MASTER; // channels < 3
+    enum ISA_DMA_REGISTERS mode_slv = MODE_SLAVE; // channels > 3
+    enum ISA_DMA_REGISTERS ffm = FLIP_FLOP_MASTER;
+    enum ISA_DMA_REGISTERS mask_m = MASK_MASTER;
+
+    switch (Channel){
+        case 1:
+            enum ISA_DMA_REGISTERS buffer_low = C1_START;
+            enum ISA_DMA_REGISTERS buffer_high = C1_START_UPPER;
+            enum ISA_DMA_REGISTERS count_p = C1_COUNT;
+
+            outb(mask_m, 0b101); // mask channel 1
+
+            outb(ffm, 0); // reset flipflop
+
+            outb(buffer_low, Buffer); // send out the low 16 bits of the 24 bit Buffer
+            outb(buffer_low, Buffer >> 8);
+
+            outb(ffm, 0); // reset flipflop
+
+            outb(count_p, Count); // send out the count
+            outb(count_p, Count >> 8);
+
+            outb(buffer_high, Buffer >> 16); // send out the high 8 bits of the 24 bit Buffer
+            
+            outb(ffm, 0); // reset flipflop
+
+            // then, set the mode
+            uint8_t state = 0;
+            state |= 0b01; // CHANNEL
+            state |= 0b10 << 2;
+            state |= (Auto ? 1 : 0) << 4;
+            state |= Mode << 6;
+            outb(mode_mas, state);
+
+            // unmask channel 1
+            outb(mask_m, 0b01);
+
+            break;
+        case 2:
+            enum ISA_DMA_REGISTERS buffer_low_c2 = C2_START;
+            enum ISA_DMA_REGISTERS buffer_high_c2 = C2_START_UPPER;
+            enum ISA_DMA_REGISTERS count_p_c2 = C2_COUNT;
+
+            outb(mask_m, 0b110); // mask channel 2
+
+            outb(ffm, 0); // reset flipflop
+
+            outb(buffer_low_c2, Buffer); // send out the low 16 bits of the 24 bit Buffer
+            outb(buffer_low_c2, Buffer >> 8);
+
+            outb(ffm, 0); // reset flipflop
+
+            outb(count_p_c2, Count); // send out the count
+            outb(count_p_c2, Count >> 8);
+
+            outb(buffer_high_c2, Buffer >> 16); // send out the high 8 bits of the 24 bit Buffer
+
+            // then, set the mode
+            uint8_t state_c2 = 0;
+            state_c2 |= 0b10; // CHANNEL
+            state_c2 |= 0b10 << 2;
+            state_c2 |= (Auto ? 1 : 0) << 4;
+            state_c2 |= Mode << 6;
+            outb(mode_mas, state_c2);
+            
+            outb(ffm, 0); // reset flipflop
+
+            // unmask channel 2
+            outb(mask_m, 0b010);
+
+            break;
+        case 3:
+            enum ISA_DMA_REGISTERS buffer_low_c3 = C3_START;
+            enum ISA_DMA_REGISTERS buffer_high_c3 = C3_START_UPPER;
+            enum ISA_DMA_REGISTERS count_p_c3 = C3_COUNT;
+        
+            outb(ffm, 0); // reset flipflop
+
+            outb(mask_m, 0b111); // mask channel 3
+
+            outb(ffm, 0); // reset flipflop
+
+            outb(buffer_low_c3, Buffer); // send out the low 16 bits of the 24 bit Buffer
+            outb(buffer_low_c3, Buffer >> 8);
+
+            outb(ffm, 0); // reset flipflop
+
+            outb(count_p_c3, Count); // send out the count
+            outb(count_p_c3, Count >> 8);
+
+            outb(buffer_high_c3, Buffer >> 16); // send out the high 8 bits of the 24 bit Buffer
+            
+            outb(ffm, 0); // reset flipflop
+
+            // then, set the mode
+            uint8_t state_c3 = 0;
+            state_c3 |= 0b11; // CHANNEL
+            state_c3 |= 0b10 << 2;
+            state_c3 |= (Auto ? 1 : 0) << 4;
+            state_c3 |= Mode << 6;
+            outb(mode_mas, state_c3);
+            
+            outb(ffm, 0); // reset flipflop
+
+            // unmask channel 3
+            outb(mask_m, 0b011);
+
+            break;
+    }
+    return 0;
 }

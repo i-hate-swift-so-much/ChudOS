@@ -23,6 +23,8 @@
 void kernel_startup(uint64_t boot_drive){
     cls();
 
+    boot_drive &= 0xFF;
+
     PrintCycles();
     print(" Enumerating Memory ", 0);
     take_print_snapshot();
@@ -109,6 +111,7 @@ void kernel_startup(uint64_t boot_drive){
     }
 
     FLOPPY_Configure(0, true, false, true);
+    
 
     PrintCycles();
     printf(" DOING FLOPPY READ TEST ");
@@ -122,22 +125,34 @@ void kernel_startup(uint64_t boot_drive){
         printf("EXPECTED 69\n");
     #endif
     if(test_floppy_buffer[439] == 69){
-        print_success_snapshot("SUCCESS", 0);
+        #ifdef DEBUG
+            print_success_snapshot("SUCCESS", 0);
+        #else
+            print_success_snapshot("SUCCESS\n", 0);
+        #endif
     }else{
-        print_error_snapshot("FAILURE", 0);
+        #ifdef DEBUG
+            print_error_snapshot("FAILURE", 0);
+        #else
+            print_error_snapshot("FAILURE\n", 0);
+        #endif
     }
 
-    PrintCycles();
-    printf(" Creating Shell Task\n");
-
     // begin setting up the shell
-    LoadElf(0, 3000, 4278); // the shell is at LBA 3000 and 4278 bytes in length
+    //PrintCycles();
+    //printf(" Creating Shell Task\n");
+    //LoadElf(0, 1500, 4278); // the shell is at LBA 3000 and 9 sectors in length
 
     //ClearScreen();
 
-    //tasks_enabled = true;
+    tasks_enabled = true;
 
-    //printf("ChudOS Version %i.%i.%i:%i%c\n", VERSION_MAJOR, VERSION_MINOR, VERSION_PATCH, BUILD, BUILD_CLASS);
+    printf("Boot Drive: %x\n", boot_drive);
+
+    //GemFS_LoadPartitionTable(F0);
+    //GemFS_DumpPartition(F0, 1);
+
+    printf("ChudOS Version %i.%i.%i:%i%c\n", VERSION_MAJOR, VERSION_MINOR, VERSION_PATCH, BUILD, BUILD_CLASS);
 
     while (1){
 

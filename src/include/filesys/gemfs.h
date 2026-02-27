@@ -16,6 +16,23 @@ enum GemFS_DriveIDs{
     H3, // Hard Drive 3
 };
 
+struct GemFS_MBRPartition{
+    uint8_t Status; // 0x80 = bootable, 0x00 = not bootable
+    uint16_t Reserved_0; // Reserved_0, 1, 2, and 3 are just the CHS but we don't care about that
+    uint8_t Reserved_1;
+    uint8_t Type;
+    uint16_t Reserved_2;
+    uint8_t Reserved_3;
+    uint32_t LBA_Start;
+    uint32_t Sector_Count;
+}__attribute__((packed));
+
+struct GemFS_DriveData{
+    uint16_t DriveID;
+    struct GemFS_MBRPartition PartitionTable[4];
+    bool Is_GemFS;
+};
+
 struct GemFS_Entry{
     uint64_t Start;
     uint64_t Size;
@@ -35,6 +52,10 @@ struct GemFS_Main{
     struct GemFS_Entry Entry;
 }__attribute__((packed));
 
+void GemFS_DumpPartition(enum GemFS_DriveIDs DriveID, uint8_t Partition);
+void GemFS_DumpDriveData(enum GemFS_DriveIDs DriveID);
+
+void GemFS_FormatPartition(enum GemFS_DriveIDs DriveID, uint8_t Partition);
 void GemFS_LoadPartitionTable(enum GemFS_DriveIDs DriveID);
 
 void GemFS_Init(enum GemFS_DriveIDs DriveID, uint8_t Partition);

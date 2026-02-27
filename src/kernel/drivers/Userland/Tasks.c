@@ -111,7 +111,7 @@ void ELF_DumpHeader(ElfHeader64* header){
     * @brief Loads a program into memory and registers it.
     * @param Drive The drive number that should be read from
     * @param LBA The starting LBA of the file
-    * @param Program_Size The size (in bytes) of the program
+    * @param Program_Size The size (in blocks) of the program
 */
 void* LoadElf(uint8_t Drive, uint64_t LBA, size_t Program_Size){
     memset(Program_Buffer, 0, 0x40000);

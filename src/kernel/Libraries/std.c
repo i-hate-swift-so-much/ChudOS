@@ -75,12 +75,12 @@ void print(const char* toPrint, int length){
             }else if(curChar == '\t'){
                 if(curX > 79-8 && curY == 24){
                     NewLine();
-                    curX = 8-(79-curX);
+                    curX = 4-(79-curX);
                 }else if(curX > 79-8){
                     NewLine();
-                    curX = 8-(79-curX);
+                    curX = 4-(79-curX);
                 }else{
-                    curX+=8;
+                    curX+=4;
                 }
             }else{
                 WriteCharacter(curChar, curX, curY);

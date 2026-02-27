@@ -11,7 +11,7 @@ dap_kernel: ; read the kernel into memory
     dw 127 ; sectors to read
     dw 0x0000 ; offset
     dw 0x1000 ; segment
-    dq 2448 ; start lba
+    dq 500 ; start lba
 
 align 16
 dap_kernel_2: ; read the kernel into memory
@@ -20,7 +20,7 @@ dap_kernel_2: ; read the kernel into memory
     dw 127 ; sectors to read
     dw 0x0000 ; offset
     dw 0x2000 ; segment
-    dq 2575 ; start lba
+    dq 627 ; start lba
 
 align 16
 dap_kernel_3: ; read the kernel into memory
@@ -29,7 +29,7 @@ dap_kernel_3: ; read the kernel into memory
     dw 127 ; sectors to read
     dw 0x0000 ; offset
     dw 0x3000 ; segment
-    dq 2702 ; start lba
+    dq 754 ; start lba
 
 align 16
 dap_kernel_setup: ; read the kernel into memory
@@ -38,7 +38,7 @@ dap_kernel_setup: ; read the kernel into memory
     dw 1
     dw 0x0000
     dw 0x4000
-    dq 2648
+    dq 648
 
 align 16
 dap_boot2_1: ; read the first half of the third stage into memory
@@ -47,7 +47,7 @@ dap_boot2_1: ; read the first half of the third stage into memory
     dw 127
     dw 0x0000
     dw 0x6000
-    dq 2048
+    dq 64
 
 align 16
 dap_boot2_2: ; read the second half of the third stage into memory
@@ -56,7 +56,7 @@ dap_boot2_2: ; read the second half of the third stage into memory
     dw 127
     dw 0xFE00
     dw 0x6000
-    dq 2175
+    dq 191
 
 segments:
 ; Reset segment registers (again)
@@ -218,8 +218,8 @@ print_int:
     ret
 
 load_kernel_setup_floppy:
-    ; starting LBA = 2648
-    mov ax, 2648
+    ; starting LBA = 648
+    mov ax, 648
     call calculate_LBA_to_CHS
 
     mov dword [floppy_target_address], 0x40000
@@ -307,8 +307,8 @@ load_kernel_setup_floppy:
         ret
 
 load_kernel_floppy:
-    ; LBA = 2448
-    mov ax, 2448
+    ; LBA = 500
+    mov ax, 500
     call calculate_LBA_to_CHS
 
     mov dword [floppy_target_address], 0x10000
@@ -395,8 +395,8 @@ load_kernel_floppy:
         ret
 
 load_boot2_1_floppy:
-    ; LBA = 20
-    mov ax, 2048
+    ; LBA = 64
+    mov ax, 64
     call calculate_LBA_to_CHS
 
     mov dword [floppy_target_address], 0x60000

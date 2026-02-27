@@ -19,7 +19,7 @@ void kernel_setup_main(uint64_t BootDrive){
 
     uint64_t thing = KERNEL_NEW;
     __asm__ volatile(
-        "movq %0, %%rdi"
+        "movq %0, %%rdi\n"
         "jmp *%1"
         :
         : "m"(BootDrive), "m" (thing)

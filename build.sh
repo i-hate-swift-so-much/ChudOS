@@ -8,7 +8,7 @@ version_minor="1"
 version_major="0"
 
 build_count_file="build.txt"
-build_type="a"
+build_type="u"
 
 args=""
 
@@ -17,6 +17,10 @@ debug_flag_set=0
 silent_flag_set=0
 run_with_qemu=0
 run_with_qemu_legacy_drivers=0
+isa_dma_check=0
+floppy_r_check=0
+floppy_w_check=0
+floppy_sanity_check=0
 
 if [[ ! -f "$build_count_file" ]]; then
     echo 0 > "$build_count_file"
@@ -42,6 +46,21 @@ for arg in "$@"; do
         run_with_qemu=1
     elif [[ "$arg" == "run-legacy" || "$arg" == "-rl" ]]; then
         run_with_qemu_legacy_drivers=1
+    elif [[ "$arg" == "isa_dma_sanity_check" || "$arg" == "-isa-dma-sc" && $isa_dma_check == 0 ]]; then
+        args+=" isa_sanity"
+        isa_dma_check=1
+    elif [[ "$arg" == "floppy_sanity_check" || "$arg" == "-fdc-sc" && $floppy_sanity_check == 0 ]]; then
+        args+=" floppy_sanity_r"
+        args+=" floppy_sanity_w"
+        floppy_r_check=1
+        floppy_w_check=1
+        floppy_sanity_check=1
+    elif [[ "$arg" == "floppy_read_sanity_check" || "$arg" == "-fdc-r-sc" && $floppy_r_check == 0 ]]; then
+        args+=" floppy_sanity_r"
+        floppy_r_check=1
+    elif [[ "$arg" == "isa_dma_sanity_check" || "$arg" == "-fdc-w-sc" && $floppy_w_check == 0 ]]; then
+        args+=" floppy_sanity_w"
+        floppy_w_check=1
     fi
 done
 
@@ -55,13 +74,13 @@ echo "Built ChudOS v${version_major}.${version_minor}.${version_patch}:${new_bui
 echo "$(date)"
 
 if [[ $run_with_qemu_legacy_drivers == 1 ]]; then
-    qemu-system-x86_64 -fda bin/ChudOS.img \
+    qemu-system-x86_64 \
+        -drive file=bin/ChudOS.img,format=raw,if=floppy,readonly=off,cache=writethrough \
         -boot a,strict=on \
-        -no-reboot -no-shutdown -d int,in_asm -D qemu.log -monitor stdio \
+        -no-reboot -no-shutdown -d int,in_asm,trace:fdc_*,trace:dma_* -D qemu.log -monitor stdio \
         -device VGA,vgamem_mb=3 \
-        -machine q35 \
-        -m 2G \
-        -trace "i8237*"
+        -machine pc \
+        -m 2G 
     stty echo
     exit 0
 fi

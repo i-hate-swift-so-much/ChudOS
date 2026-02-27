@@ -17,6 +17,7 @@
 #include "LowLevel/GDT.h"
 #include "Devices/Disk/Floppy.h"
 #include "Userland/Tasks.h"
+#include "filesys/gemfs.h"
 #include "stdbool.h"
 #include "stdint.h"
 

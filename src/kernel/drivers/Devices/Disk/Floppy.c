@@ -14,6 +14,8 @@ bool FLOPPY_FDC_Present = false;
 
 FLOPPY_Info_Struct FLOPPY_Main_Info;
 
+bool floppy_result_ready = false;
+
 // makes sure the motherboard has an actual FDC
 void FLOPPY_Check_FDC(){
     enum FLOPPY_Controller_Registers MSR = MAIN_STATUS_REGISTER;
@@ -44,7 +46,7 @@ bool FLOPPY_Read_Result_Bytes(uint8_t count, uint8_t* buffer){
     enum FLOPPY_Controller_Registers FIFO = DATA_FIFO;
 
     uint8_t MSR_Status = 0;
-    
+
     for(int i = 0; i < count; i++){
         // check DIO and RQM
         MSR_Status = inb(MSR);
@@ -125,6 +127,8 @@ int FLOPPY_Init_Controller(){
 
     // second, set up the IRQ
     SetIDTEntry(FLOPPY_IRQ_INDEX, (uint64_t)floppy_drive_stub, 0x08, 0x8E, 0x01);
+    pic_unmask(0x06);
+
 
     // third, enable the interrupt line
 
@@ -153,13 +157,18 @@ int FLOPPY_Init_Controller(){
 
     #endif
 
-    print_success_snapshot("SUCCESS", 0);
+    #ifdef DEBUG
+        print_success_snapshot("SUCCESS", 0);
+    #else
+        print_success_snapshot("SUCCESS\n", 0);
+    #endif
 
     return 1; // success
 }
 
 void FLOPPY_IRQ(InterruptRegisters* registers){
-    printf("YOOOO FLOPPY INTERRUPT IN THE HOUSEEE\n", 0);
+    floppy_result_ready = true;
+    pic_send_eoi(0x26);
 }
 
 /*
@@ -204,7 +213,11 @@ int FLOPPY_Init_Drive(uint8_t drive_number){
         SetTextColor(WHITE, BLACK);
     #endif
 
-    print_success_snapshot("SUCCESS", 0);
+    #ifdef DEBUG
+        print_success_snapshot("SUCCESS", 0);
+    #else
+        print_success_snapshot("SUCCESS\n", 0);
+    #endif
 
     return (state & motor_bit);
 }
@@ -257,7 +270,20 @@ uint8_t FLOPPY_Get_Version(uint8_t Drive){
     * @return int 0 on success, anything else is the error code
 */
 int FLOPPY_Read_CHS(uint8_t Drive, uint8_t Cylinder, uint8_t Head, uint8_t Sector, uint64_t BufferAddress, uint16_t SectorCount){
+    memset((void*)FLOPPY_BOUNCE_BUFFER, 0, sizeof(FLOPPY_BOUNCE_BUFFER));
+    
     uint64_t transfer_count = SectorCount * 512; // convert the sector count to a byte count for DMA
+    
+    #ifdef FLOPPY_SANITY_READ
+        SetTextColor(LCYAN, BLACK);
+        PrintCycles();
+        printf(" INITIATING FLOPPY READ\n\t");
+        printf("DRIVE: %i\n\t", Drive);
+        printf("CHS: %i:%i:%i\n\t", Cylinder, Head, Sector);
+        printf("BUFFER: %x\n\t", BufferAddress);
+        printf("SECTOR COUNT: %x\n\t", SectorCount);
+        printf("BYTE COUNT: %x\n", transfer_count);
+    #endif
     
     FLOPPY_Set_Drive(Drive);
 
@@ -268,10 +294,13 @@ int FLOPPY_Read_CHS(uint8_t Drive, uint8_t Cylinder, uint8_t Head, uint8_t Secto
     if(transfer_count > 0x10000){
         for(int i = 0; i < (transfer_count / 0x10000); i++){
             // program ISA-DMA
-            ISA_DMA_Transfer_To(2, (uint32_t)FLOPPY_BOUNCE_BUFFER, (transfer_count % 0x10000) - 1, true, 0b01);
+            ISA_DMA_Transfer_To(2, (uint32_t)phys_addr(FLOPPY_BOUNCE_BUFFER), (transfer_count % 0x10000) - 1, true, 0b01);
 
+            floppy_result_ready = false;
             // send the command
             FLOPPY_Send_Command(FLOPPY_CMD_READ, 8, Parameters);
+
+            while(!floppy_result_ready){}
 
             FLOPPY_Read_Result_Bytes(7, Results);
 
@@ -295,8 +324,11 @@ int FLOPPY_Read_CHS(uint8_t Drive, uint8_t Cylinder, uint8_t Head, uint8_t Secto
             // program ISA-DMA
             ISA_DMA_Transfer_To(2, (uint32_t)FLOPPY_BOUNCE_BUFFER, (transfer_count % 0x10000) - 1, true, 0b01);
 
+            floppy_result_ready = false;
             // send the command
             FLOPPY_Send_Command(FLOPPY_CMD_READ, 8, Parameters);
+
+            while(!floppy_result_ready){}
 
             FLOPPY_Read_Result_Bytes(7, Results);
 
@@ -320,8 +352,11 @@ int FLOPPY_Read_CHS(uint8_t Drive, uint8_t Cylinder, uint8_t Head, uint8_t Secto
         // program ISA-DMA
         ISA_DMA_Transfer_To(2, (uint32_t)FLOPPY_BOUNCE_BUFFER, (transfer_count) - 1, true, 0b01);
 
+        floppy_result_ready = false;
         // send the command
         FLOPPY_Send_Command(FLOPPY_CMD_READ, 8, Parameters);
+
+        while(!floppy_result_ready){}
 
         FLOPPY_Read_Result_Bytes(7, Results);
 
@@ -342,13 +377,11 @@ int FLOPPY_Read_CHS(uint8_t Drive, uint8_t Cylinder, uint8_t Head, uint8_t Secto
 
         memcpy((void*)BufferAddress, (void*)FLOPPY_BOUNCE_BUFFER, transfer_count);
     }
-
-    #ifdef DEBUG
+    #ifdef FLOPPY_SANITY_READ
         SetTextColor(LCYAN, BLACK);
-        printf("BUFFER ADDR: %x\n", (uint64_t)FLOPPY_BOUNCE_BUFFER);
-        printf("ENDING CHS %i:%i:%i\n", Results[3], Results[4], Results[5]);
-        printf("st0: %b\n", Results[0]);
-        printf("st1: %b\n", Results[1]);
+        printf("RESULTS:\n\t");
+        printf("st0: %b\n\t", Results[0]);
+        printf("st1: %b\n\t", Results[1]);
         printf("st2: %b\n", Results[2]);
         SetTextColor(WHITE, BLACK);
     #endif
@@ -357,7 +390,7 @@ int FLOPPY_Read_CHS(uint8_t Drive, uint8_t Cylinder, uint8_t Head, uint8_t Secto
 }
 
 /**
-    * @brief Reads sectors from a FLOPPY by reprogramming the ISA-DMA and then issuing a READ command with it's parameters.
+    * @brief Writes sectors to a FLOPPY by reprogramming the ISA-DMA and then issuing a WRITE command with it's parameters.
     This function uses a bounce buffer (at the top of this file) thats read into then memcpy'd into the real buffers
     location.
     * @param Drive The drive index
@@ -368,7 +401,153 @@ int FLOPPY_Read_CHS(uint8_t Drive, uint8_t Cylinder, uint8_t Head, uint8_t Secto
     * @param SectorCount The amount of sectors to read
     * @return int 0 on success, anything else is the error code
 */
+int FLOPPY_Write_CHS(uint8_t Drive, uint8_t Cylinder, uint8_t Head, uint8_t Sector, uint64_t BufferAddress, uint16_t SectorCount){
+    memset((void*)FLOPPY_BOUNCE_BUFFER, 0, sizeof(FLOPPY_BOUNCE_BUFFER));
+    
+    uint64_t transfer_count = SectorCount * 512; // convert the sector count to a byte count for DMA
+    
+    #ifdef FLOPPY_SANITY_WRITE
+        SetTextColor(LCYAN, BLACK);
+        PrintCycles();
+        printf(" INITIATING FLOPPY WRITE\n\t");
+        printf("DRIVE: %i\n\t", Drive);
+        printf("CHS: %i:%i:%i\n\t", Cylinder, Head, Sector);
+        printf("BUFFER: %x\n\t", BufferAddress);
+        printf("SECTOR COUNT: %x\n\t", SectorCount);
+        printf("BYTE COUNT: %x\n", transfer_count);
+    #endif
+
+    FLOPPY_Set_Drive(Drive);
+
+    uint8_t Parameters[8] = {(Head << 2) | Drive, Cylinder, Head, Sector, 2, FLOPPY_Main_Info.sector_max, 0x1b, 0xff};
+    uint8_t Results[8];
+
+    // if it will cause the 64kb overflow
+    if(transfer_count > 0x10000){
+        for(int i = 0; i < (transfer_count / 0x10000); i++){
+            memcpy((void*)FLOPPY_BOUNCE_BUFFER, (void*)BufferAddress, 0x10000);
+            
+            // program ISA-DMA
+            ISA_DMA_Transfer_From(2, (uint32_t)phys_addr(FLOPPY_BOUNCE_BUFFER), (transfer_count % 0x10000), true, 0b01);
+
+            floppy_result_ready = false;
+            // send the command
+            FLOPPY_Send_Command(FLOPPY_CMD_WRITE, 8, Parameters);
+
+            while(!floppy_result_ready){}
+
+            FLOPPY_Read_Result_Bytes(7, Results);
+
+            // do error checking from st1 (Results[1])
+            if(Results[1] & 0x80){
+                print_error("FLOPPY READ ERROR: NOT ENOUGH SECTORS (0x80)\n", 0);
+                return Results[1]; // return the error code
+            }
+            if(Results[1] & 0x40){
+                print_error("FLOPPY READ ERROR: DRIVER TOO SLOW (0x40)\n", 0);
+                return Results[1]; // return the error code
+            }
+            if(Results[1] & 2){
+                print_error("FLOPPY READ ERROR: DRIVE IS WRITE PROTECTED (0x02)\n", 0);
+                return Results[1]; // return the error code
+            }
+        }
+        if(transfer_count % 0x10000 > 1){
+            memcpy((void*)FLOPPY_BOUNCE_BUFFER, (void*)BufferAddress, transfer_count % 0x10000);
+            // program ISA-DMA
+            ISA_DMA_Transfer_From(2, (uint32_t)phys_addr(FLOPPY_BOUNCE_BUFFER), (transfer_count % 0x10000), true, 0b01);
+
+            floppy_result_ready = false;
+            // send the command
+            FLOPPY_Send_Command(FLOPPY_CMD_WRITE, 8, Parameters);
+
+        while(!floppy_result_ready){}
+
+            FLOPPY_Read_Result_Bytes(7, Results);
+
+            // do error checking from st1 (Results[1])
+            if(Results[1] & 0x80){
+                print_error("FLOPPY READ ERROR: NOT ENOUGH SECTORS (0x80)\n", 0);
+                return Results[1]; // return the error code
+            }
+            if(Results[1] & 0x40){
+                print_error("FLOPPY READ ERROR: DRIVER TOO SLOW (0x40)\n", 0);
+                return Results[1]; // return the error code
+            }
+            if(Results[1] & 2){
+                print_error("FLOPPY READ ERROR: DRIVE IS WRITE PROTECTED (0x02)\n", 0);
+                return Results[1]; // return the error code
+            }
+        }
+    }else{
+        memcpy((void*)FLOPPY_BOUNCE_BUFFER, (void*)BufferAddress, transfer_count);
+
+        printf("AHHHHH %x\n", FLOPPY_BOUNCE_BUFFER[0]);
+
+        // program ISA-DMA
+        ISA_DMA_Transfer_From(2, (uint32_t)phys_addr(FLOPPY_BOUNCE_BUFFER), transfer_count, false, 0b01);
+
+        floppy_result_ready = false;
+        // send the command
+        FLOPPY_Send_Command(FLOPPY_CMD_WRITE, 8, Parameters);
+
+        while(!floppy_result_ready){}
+
+        FLOPPY_Read_Result_Bytes(7, Results);
+
+        // do error checking from st1 (Results[1])
+        if(Results[1] & 0x80){
+            print_error("FLOPPY READ ERROR: NOT ENOUGH SECTORS (0x80)\n", 0);
+            return Results[1]; // return the error code
+        }
+        if(Results[1] & 0x40){
+            print_error("FLOPPY READ ERROR: DRIVER TOO SLOW (0x40)\n", 0);
+            return Results[1]; // return the error code
+        }
+        if(Results[1] & 2){
+            print_error("FLOPPY READ ERROR: DRIVE IS WRITE PROTECTED (0x02)\n", 0);
+            return Results[1]; // return the error code
+        }
+    }
+
+    #ifdef FLOPPY_SANITY_WRITE
+        SetTextColor(LCYAN, BLACK);
+        printf("RESULTS:\n\t");
+        printf("st0: %b\n\t", Results[0]);
+        printf("st1: %b\n\t", Results[1]);
+        printf("st2: %b\n", Results[2]);
+        SetTextColor(WHITE, BLACK);
+    #endif
+    
+    return 0;
+}
+
+/**
+    * @brief Reads sectors from a FLOPPY by reprogramming the ISA-DMA and then issuing a READ command with it's parameters.
+    This function uses a bounce buffer (at the top of this file) thats read into then memcpy'd into the real buffers
+    location.
+    * @param Drive The drive index
+    * @param LBA The LBA to start at
+    * @param BufferAddress the address of the buffer to write to
+    * @param SectorCount The amount of sectors to read
+    * @return int 0 on success, anything else is the error code
+*/
 int FLOPPY_Read_LBA(uint8_t Drive, uint64_t LBA, uint64_t BufferAddress, uint16_t SectorCount){
     CHS new = FLOPPY_LBA_To_CHS(LBA);
     return FLOPPY_Read_CHS(Drive, new.Cylinder, new.Head, new.Sector, BufferAddress, SectorCount);
+}
+
+/**
+    * @brief Writes sectors to a FLOPPY by reprogramming the ISA-DMA and then issuing a WRITE command with it's parameters.
+    This function uses a bounce buffer (at the top of this file) thats read into then memcpy'd into the real buffers
+    location.
+    * @param Drive The drive index
+    * @param LBA The LBA to start at
+    * @param BufferAddress the address of the buffer to write to
+    * @param SectorCount The amount of sectors to read
+    * @return int 0 on success, anything else is the error code
+*/
+int FLOPPY_Write_LBA(uint8_t Drive, uint64_t LBA, uint64_t BufferAddress, uint16_t SectorCount){
+    CHS new = FLOPPY_LBA_To_CHS(LBA);
+    return FLOPPY_Write_CHS(Drive, new.Cylinder, new.Head, new.Sector, BufferAddress, SectorCount);
 }

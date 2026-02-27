@@ -9,6 +9,11 @@ _start:
     mov rsp, rax
     mov rbp, rax
 
+    xor rax, rax
+    mov eax, edi
+    xor rdi, rdi
+    movzx rdi, eax
+
     call kernel_setup_main
 hang:
     mov eax, 0xFFFFFFFA

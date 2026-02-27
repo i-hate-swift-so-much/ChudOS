@@ -1,4 +1,4 @@
-.PHONY: clean debug all
+.PHONY: clean debug isa_sanity floppy_sanity_r floppy_sanity_w all
 
 VERSION_MAJOR ?= 0
 VERSION_MINOR ?= 0
@@ -16,7 +16,7 @@ c = x86_64-elf-gcc
 asflags ?= -f bin
 entryasflags ?= -f elf64
 ldflags_kernel ?= -Tkernel64.ld
-cflags ?= -m64 -I src/include -ffreestanding -nostdlib -c -mno-red-zone -mcmodel=large
+cflags ?= -m64 -I src/include -ffreestanding -nostdlib -c -mno-red-zone -mcmodel=large -DVERSION_MAJOR=$(VERSION_MAJOR) -DVERSION_MINOR=$(VERSION_MINOR) -DVERSION_PATCH=$(VERSION_PATCH) -DBUILD=$(BUILD) -DBUILD_TYPE=$(BUILD_TYPE)
 
 output_img := bin/ChudOS.img
 
@@ -36,15 +36,25 @@ kernel_flat := obj/kernel.bin
 kernel_entry_src := src/kernel/kernel_entry.s
 kernel_entry_obj := obj/kernel_entry.o
 
-drivers_src := src/kernel/drivers/Display/VGA.c src/kernel/Libraries/std.c src/kernel/drivers/LowLevel/IDT.c src/kernel/drivers/Devices/PS2/Keyborad.c src/kernel/drivers/Devices/PIC.c src/kernel/drivers/Userland/syscall.c src/kernel/drivers/LowLevel/interrupt_stubs.s src/kernel/Libraries/Math.c src/kernel/drivers/LowLevel/Memory.c src/kernel/drivers/ErrorHandling/KernelPanic.c src/kernel/drivers/LowLevel/Power.c src/kernel/drivers/ErrorHandling/Exceptions.c src/kernel/drivers/LowLevel/Timer.c src/kernel/drivers/Devices/Disk/AHCI.c src/kernel/drivers/Userland/Tasks.c src/kernel/drivers/PCI.c src/kernel/drivers/LowLevel/GDT.c src/kernel/Display/VGA_E.c src/kernel/drivers/Devices/Disk/Floppy
-drivers_obj := obj/VGA.elf obj/std.elf obj/Keyboard.elf obj/IDT.elf obj/PIC.elf obj/syscall.elf obj/interrupt_stubs.elf obj/Math.elf obj/Memory.elf obj/KernelPanic.elf obj/Power.elf obj/Exceptions.elf obj/Timer.elf obj/AHCI.elf obj/Tasks.elf obj/PCI.elf obj/GDT.elf obj/VGA_E.elf obj/Floppy.elf
+drivers_src := src/kernel/drivers/Display/VGA.c src/kernel/Libraries/std.c src/kernel/drivers/LowLevel/IDT.c src/kernel/drivers/Devices/PS2/Keyborad.c src/kernel/drivers/Devices/PIC.c src/kernel/drivers/Userland/syscall.c src/kernel/drivers/LowLevel/interrupt_stubs.s src/kernel/Libraries/Math.c src/kernel/drivers/LowLevel/Memory.c src/kernel/drivers/ErrorHandling/KernelPanic.c src/kernel/drivers/LowLevel/Power.c src/kernel/drivers/ErrorHandling/Exceptions.c src/kernel/drivers/LowLevel/Timer.c src/kernel/drivers/Devices/Disk/AHCI.c src/kernel/drivers/Userland/Tasks.c src/kernel/drivers/PCI.c src/kernel/drivers/LowLevel/GDT.c src/kernel/Display/VGA_E.c src/kernel/drivers/Devices/Disk/Floppy src/kernel/drivers/filesys/gemfs.c
+drivers_obj := obj/VGA.elf obj/std.elf obj/Keyboard.elf obj/IDT.elf obj/PIC.elf obj/syscall.elf obj/interrupt_stubs.elf obj/Math.elf obj/Memory.elf obj/KernelPanic.elf obj/Power.elf obj/Exceptions.elf obj/Timer.elf obj/AHCI.elf obj/Tasks.elf obj/PCI.elf obj/GDT.elf obj/VGA_E.elf obj/Floppy.elf obj/gemfs.elf
 drivers_flat := obj/drivers.bin
 
 all: clean build_boot boot_bin build_kernel link_kernel
 ifneq ($(filter debug,$(MAKECMDGOALS)),)
-    cflags += -DDEBUG -DVERSION_MAJOR=$(VERSION_MAJOR) -DVERSION_MINOR=$(VERSION_MINOR) -DVERSION_PATCH=$(VERSION_PATCH) -DBUILD=$(BUILD) -DBUILD_TYPE=$(BUILD_TYPE)
-else
-	cflags += -DVERSION_MAJOR=$(VERSION_MAJOR) -DVERSION_MINOR=$(VERSION_MINOR) -DVERSION_PATCH=$(VERSION_PATCH) -DBUILD=$(BUILD) -DBUILD_TYPE=$(BUILD_TYPE)
+    cflags += -DDEBUG 
+endif
+
+ifneq ($(filter isa_sanity,$(MAKECMDGOALS)),)
+	cflags += -DISA_DMA_SANITY_CHECK
+endif
+
+ifneq ($(filter floppy_sanity_r,$(MAKECMDGOALS)),)
+	cflags += -DFLOPPY_SANITY_READ
+endif
+
+ifneq ($(filter floppy_sanity_w,$(MAKECMDGOALS)),)
+	cflags += -DFLOPPY_SANITY_WRITE
 endif
 
 clean:
@@ -60,7 +70,7 @@ boot_bin: ${boot0_obj} ${boot1_obj}
 	dd if=/dev/zero of=${output_img} bs=512 count=4096
 	dd if=${boot0_obj} of=${output_img} bs=512 seek=0 conv=notrunc
 	dd if=${boot1_obj} of=${output_img} bs=512 seek=1 conv=notrunc
-	dd if=${boot2_obj} of=${output_img} bs=512 seek=2048 conv=notrunc
+	dd if=${boot2_obj} of=${output_img} bs=512 seek=64 conv=notrunc
 
 build_kernel ${kernel_src} ${drivers_src} ${kernel_entry_src}: 
 	${c} src/kernel/kernel_setup.c ${cflags} -o obj/kernel_setup.o
@@ -87,6 +97,7 @@ build_kernel ${kernel_src} ${drivers_src} ${kernel_entry_src}:
 	${c} src/kernel/drivers/LowLevel/GDT.c ${cflags} -o obj/GDT.elf
 	${c} src/kernel/drivers/Display/VGA_E.c ${cflags} -o obj/VGA_E.elf
 	${c} src/kernel/drivers/Devices/Disk/Floppy.c ${cflags} -o obj/Floppy.elf
+	${c} src/kernel/drivers/filesys/gemfs.c ${cflags} -o obj/gemfs.elf
 
 link_kernel ${kernel_obj} ${drivers_obj}:
 	${ld} -TkernelSetup64.ld -o obj/kernel_setup.elf obj/kernel_setup_entry.o obj/kernel_setup.o
@@ -94,6 +105,6 @@ link_kernel ${kernel_obj} ${drivers_obj}:
 
 	${ld} ${ldflags_kernel} -o ${kernel_link} ${kernel_entry_obj} ${drivers_obj} ${kernel_obj}
 	x86_64-elf-objcopy -O binary ${kernel_link} ${kernel_flat}
-	dd if=${kernel_flat} of=${output_img} bs=512 seek=2448 conv=notrunc
-	dd if=obj/kernel_setup.bin of=${output_img} bs=512 seek=2648 conv=notrunc
-	dd if=program_bin/shell.elf of=${output_img} bs=512 seek=3000 conv=notrunc
+	dd if=${kernel_flat} of=${output_img} bs=512 seek=500 conv=notrunc
+	dd if=obj/kernel_setup.bin of=${output_img} bs=512 seek=648 conv=notrunc
+	dd if=program_bin/shell.elf of=${output_img} bs=512 seek=1500 conv=notrunc

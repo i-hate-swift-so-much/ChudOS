@@ -2,7 +2,7 @@
 [bits 32]
 
 _start:
-    mov [drive_boot], rdi
+    mov [drive_boot], edi
     
     mov [kernel_arg1], eax
     mov [kernel_arg2], ebx
@@ -486,6 +486,9 @@ start64:
 
     mov byte [0xB8002], 'B'
     mov byte [0xB8003], 0x0F
+
+    xor rdi, rdi
+    mov edi, [drive_boot]
 
     jmp 0x40000 ; kernel setup
 
