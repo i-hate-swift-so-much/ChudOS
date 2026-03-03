@@ -16,13 +16,17 @@ the RegistersUsersCall struct, and does not feature RSP and SS, which will corru
 int lastPrintX = 0;
 int lastPrintY = 0;
 
-void handle_syscall(InterruptRegisters regs){
-    uint64_t rax_value = regs.rax;
-    uint64_t rbx_value = regs.rbx;
-    uint64_t rcx_value = regs.rcx;
-    uint64_t rdx_value = regs.rdx;
+void handle_syscall(InterruptRegisters* regs){
+    uint64_t rax_value = regs->rax;
+    uint64_t rbx_value = regs->rbx;
+    uint64_t rcx_value = regs->rcx;
+    uint64_t rdx_value = regs->rdx;
 
     switch (rax_value){
+        case 0:
+            KillTask(TASKMGR_get_current());
+            ForceSwitch(regs);
+            return;
         case 1:
             // WRITE
             // rdx = descriptor
@@ -30,11 +34,8 @@ void handle_syscall(InterruptRegisters regs){
             // rbx = buffer address
             if(rdx_value == STD_OUT_FD){
                 char* msg = (char*)rbx_value;
-                for(int i = 0; i < rcx_value; i++){
-                    WriteCharacter(msg[i], i, 0);
-                    lastPrintX++;
-                }
+                print(msg, rcx_value);
             }
-            break;
+            return;
     }
 }

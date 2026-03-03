@@ -28,3 +28,4 @@ void SetTimerFrequency(uint16_t hz);
 void PrintCycles();
 void PrintSecondsSinceBoot();
 void context_switch(InterruptRegisters* regs);
+void ForceSwitch(InterruptRegisters* regs);

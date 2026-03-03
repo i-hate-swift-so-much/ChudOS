@@ -296,25 +296,25 @@ Paritition_Table:
     .mbr_partition:
         db 0x80              ; bootable
         db 0x00              ; start head
-        db 63              ; start sector + high cyl bits
+        db 0x02              ; start sector + high cyl bits
         db 0x00              ; start cylinder
         db 0x01              ; partition type
         db 0xFE              ; end head
         db 0xFF              ; end sector + high cyl bits
         db 0xFF              ; end cylinder
-        dd 0x00000800        ; starting LBA
-        dd 0x00000800        ; sectors (2048 sectors = 1MB)
+        dd 0x00000001        ; starting LBA
+        dd 0x00000400        ; sectors (1024 sectors = 0.5MiB)
     .user_partition:
         db 0x00              ; not bootable
         db 0xFE
         db 0xFF
         db 0xFF
-        db 0x74              ; partition type, reserved for experimental OSes
+        db 0xC8              ; partition type, reserved for experimental OSes
         db 0xFE
         db 0xFF
         db 0xFF
-        dd 0x00001000        ; start at sector 2048 (some bioses want that)
-        dd 0x00100000        ; size: pick something reasonable (example: 1M sectors)
+        dd 0x00000400        ; start at sector 1024
+        dd 0x00002000        ; size: pick something reasonable (example: 1M sectors)
     .partition_3:
         dq 0x00
         dq 0x00

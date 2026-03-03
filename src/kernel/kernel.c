@@ -17,8 +17,18 @@
 #endif
 
 #ifndef BUILD_CLASS
-    #define BUILD_CLASS 'b'
+    #define BUILD_CLASS 0
 #endif
+
+void SetUpShell(){
+    PrintCycles();
+    printf(" Creating Shell Task\n");
+    LoadElf(0, 1500, 4278); // the shell is at LBA 3000 and 9 sectors in length
+
+    cls();
+
+    tasks_enabled = true;
+}
 
 void kernel_startup(uint64_t boot_drive){
     cls();
@@ -111,7 +121,6 @@ void kernel_startup(uint64_t boot_drive){
     }
 
     FLOPPY_Configure(0, true, false, true);
-    
 
     PrintCycles();
     printf(" DOING FLOPPY READ TEST ");
@@ -138,21 +147,24 @@ void kernel_startup(uint64_t boot_drive){
         #endif
     }
 
-    // begin setting up the shell
-    //PrintCycles();
-    //printf(" Creating Shell Task\n");
-    //LoadElf(0, 1500, 4278); // the shell is at LBA 3000 and 9 sectors in length
+    PrintCycles();
+    printf(" Initialzing GemFS ");
+    take_print_snapshot();
+    printf("\n");
 
-    //ClearScreen();
+    GemFS_Init(boot_drive);
 
-    tasks_enabled = true;
+    char class = 'u';
 
-    printf("Boot Drive: %x\n", boot_drive);
+    #if BUILD_CLASS == 0x02
+        class = 'r';
+    #endif
 
-    //GemFS_LoadPartitionTable(F0);
-    //GemFS_DumpPartition(F0, 1);
+    printf("ChudOS Version %i.%i.%i:%i%c\n", VERSION_MAJOR, VERSION_MINOR, VERSION_PATCH, BUILD, class);
 
-    printf("ChudOS Version %i.%i.%i:%i%c\n", VERSION_MAJOR, VERSION_MINOR, VERSION_PATCH, BUILD, BUILD_CLASS);
+    #ifdef test_user
+        SetUpShell();
+    #endif
 
     while (1){
 

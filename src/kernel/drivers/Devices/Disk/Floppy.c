@@ -482,8 +482,6 @@ int FLOPPY_Write_CHS(uint8_t Drive, uint8_t Cylinder, uint8_t Head, uint8_t Sect
     }else{
         memcpy((void*)FLOPPY_BOUNCE_BUFFER, (void*)BufferAddress, transfer_count);
 
-        printf("AHHHHH %x\n", FLOPPY_BOUNCE_BUFFER[0]);
-
         // program ISA-DMA
         ISA_DMA_Transfer_From(2, (uint32_t)phys_addr(FLOPPY_BOUNCE_BUFFER), transfer_count, false, 0b01);
 

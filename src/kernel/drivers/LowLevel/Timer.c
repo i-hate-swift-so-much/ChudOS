@@ -35,7 +35,7 @@ int find_next_task(int cur_pid){
             return i;
         }
     }
-    return 512;
+    return 0;
 }
 
 bool IsLeapYear(int y) {
@@ -74,35 +74,42 @@ void PrintSecondsSinceBoot(){
 
 void TimerInterrupt(InterruptRegisters* frame){    
     TimerWindow++;
-    if(!enabled){ pic_send_eoi(0x00); return; }
     
     TimerWindow %= 1000;
     if(TimerWindow == 999){SecondsSinceBoot++;}
 
+    if(!tasks_enabled){
+        task_switch_frame(&TaskManager[0].SavedRegisters, frame);
+    }
+
     if(tasks_enabled){
         int cur_pid = TASKMGR_get_current();
-        Task* cur_task = (Task*)&TaskManager[cur_pid];
 
         // update cur tasks regs
-        //task_switch_frame((InterruptRegisters*)&cur_task->SavedRegisters, frame);
+        task_switch_frame(&TaskManager[cur_pid].SavedRegisters, frame);
 
-        if(cur_task->UsedTicks >= cur_task->MaxTicks){
-            cur_task->UsedTicks = 0;
+        if(TaskManager[cur_pid].UsedTicks >= TaskManager[cur_pid].MaxTicks || TaskManager[cur_pid].ProcessState == KILL_PROCESS_STATE){
+            TaskManager[cur_pid].UsedTicks = 0;
+            if(TaskManager[cur_pid].ProcessState == KILL_PROCESS_STATE){
+                TaskManager[cur_pid].ProcessState = NULL_PROCESS_STATE;
+                TaskManager[cur_pid].Exists = false;
+            }
             int next_pid = find_next_task(cur_pid);
 
-            if(next_pid == 512){ pic_send_eoi(0x00); return; }
-
-            Task* next_task = (Task*)&TaskManager[next_pid];
+            if(next_pid == 512){ 
+                pic_send_eoi(0x00); 
+                return; 
+            }
 
             // make it so we return with the correct next task's info
-            task_switch_frame(frame, (InterruptRegisters*)&next_task->SavedRegisters);
+            task_switch_frame(frame, &TaskManager[next_pid].SavedRegisters);
             
             task_switch(next_pid);
         }else{
-            if(cur_pid != 1){ cur_task->UsedTicks++; }
+            TaskManager[cur_pid].UsedTicks++;
         }
     }
-    
+
     pic_send_eoi(0x00);
 }
 
@@ -147,6 +154,25 @@ void SyncTime(InterruptRegisters* frame){
     pic_send_eoi(0x08);
     pic_mask(0x08);
     pic_unmask(0x00);
+}
 
-    enabled = true;
+void ForceSwitch(InterruptRegisters* frame){
+    int cur_pid = TASKMGR_get_current();
+
+    TaskManager[cur_pid].UsedTicks = 0;
+    if(TaskManager[cur_pid].ProcessState == KILL_PROCESS_STATE){
+        TaskManager[cur_pid].ProcessState = NULL_PROCESS_STATE;
+        TaskManager[cur_pid].Exists = false;
+    }
+    int next_pid = find_next_task(cur_pid);
+
+    if(next_pid == 512){ 
+        pic_send_eoi(0x00); 
+        return; 
+    }
+
+    // make it so we return with the correct next task's info
+    task_switch_frame(frame, &TaskManager[next_pid].SavedRegisters);
+            
+    task_switch(next_pid);
 }

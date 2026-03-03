@@ -8,7 +8,7 @@ version_minor="1"
 version_major="0"
 
 build_count_file="build.txt"
-build_type="u"
+build_type=1
 
 args=""
 
@@ -21,6 +21,8 @@ isa_dma_check=0
 floppy_r_check=0
 floppy_w_check=0
 floppy_sanity_check=0
+only_run=0
+gemfs_sanity_check=0
 
 if [[ ! -f "$build_count_file" ]]; then
     echo 0 > "$build_count_file"
@@ -61,6 +63,13 @@ for arg in "$@"; do
     elif [[ "$arg" == "isa_dma_sanity_check" || "$arg" == "-fdc-w-sc" && $floppy_w_check == 0 ]]; then
         args+=" floppy_sanity_w"
         floppy_w_check=1
+    elif [[ "$arg" == "only_run" || "$arg" == "-or" ]]; then
+        only_run=1
+    elif [[ "$arg" == "gemfs_sanity_check" || "$arg" == "-gemfs-sc" && $gemfs_sanity_check == 0 ]]; then
+        args+=" gemfs_sanity"
+        gemfs_sanity_check=1
+    elif [[ "$arg" == "test_user" || "$arg" == "-tu" ]]; then
+        args+=" test_user"
     fi
 done
 
@@ -68,16 +77,18 @@ if [[ $has_all -eq 0 ]]; then
     args+=" all"
 fi
 
-make $args VERSION_MAJOR=$version_major VERSION_MINOR=$version_minor VERSION_PATCH=$version_patch BUILD=$new_build_count BUILD_TYPE=$build_type
+if [[ $only_run -eq 0 ]]; then
+    make $args VERSION_MAJOR=$version_major VERSION_MINOR=$version_minor VERSION_PATCH=$version_patch BUILD=$new_build_count BUILD_TYPE=$build_type
+fi
 
-echo "Built ChudOS v${version_major}.${version_minor}.${version_patch}:${new_build_count}${build_type} with arguments$args"
+echo "Built ChudOS v${version_major}.${version_minor}.${version_patch}:${new_build_count} with arguments$args"
 echo "$(date)"
 
 if [[ $run_with_qemu_legacy_drivers == 1 ]]; then
     qemu-system-x86_64 \
         -drive file=bin/ChudOS.img,format=raw,if=floppy,readonly=off,cache=writethrough \
         -boot a,strict=on \
-        -no-reboot -no-shutdown -d int,in_asm,trace:fdc_*,trace:dma_* -D qemu.log -monitor stdio \
+        -no-reboot -no-shutdown -d int,in_asm -D qemu.log -monitor stdio \
         -device VGA,vgamem_mb=3 \
         -machine pc \
         -m 2G 

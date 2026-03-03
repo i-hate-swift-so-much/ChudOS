@@ -1,4 +1,4 @@
-.PHONY: clean debug isa_sanity floppy_sanity_r floppy_sanity_w all
+.PHONY: clean debug isa_sanity floppy_sanity_r floppy_sanity_w gemfs_sanity test_user all
 
 VERSION_MAJOR ?= 0
 VERSION_MINOR ?= 0
@@ -16,7 +16,7 @@ c = x86_64-elf-gcc
 asflags ?= -f bin
 entryasflags ?= -f elf64
 ldflags_kernel ?= -Tkernel64.ld
-cflags ?= -m64 -I src/include -ffreestanding -nostdlib -c -mno-red-zone -mcmodel=large -DVERSION_MAJOR=$(VERSION_MAJOR) -DVERSION_MINOR=$(VERSION_MINOR) -DVERSION_PATCH=$(VERSION_PATCH) -DBUILD=$(BUILD) -DBUILD_TYPE=$(BUILD_TYPE)
+cflags ?= -m64 -I src/include -ffreestanding -nostdlib -c -mno-red-zone -mcmodel=large -DVERSION_MAJOR=$(VERSION_MAJOR) -DVERSION_MINOR=$(VERSION_MINOR) -DVERSION_PATCH=$(VERSION_PATCH) -DBUILD=$(BUILD) -DBUILD_CLASS=$(BUILD_TYPE)
 
 output_img := bin/ChudOS.img
 
@@ -46,15 +46,23 @@ ifneq ($(filter debug,$(MAKECMDGOALS)),)
 endif
 
 ifneq ($(filter isa_sanity,$(MAKECMDGOALS)),)
-	cflags += -DISA_DMA_SANITY_CHECK
+    cflags += -DISA_DMA_SANITY_CHECK 
 endif
 
 ifneq ($(filter floppy_sanity_r,$(MAKECMDGOALS)),)
-	cflags += -DFLOPPY_SANITY_READ
+    cflags += -DFLOPPY_SANITY_READ 
 endif
 
 ifneq ($(filter floppy_sanity_w,$(MAKECMDGOALS)),)
-	cflags += -DFLOPPY_SANITY_WRITE
+    cflags += -DFLOPPY_SANITY_WRITE 
+endif
+
+ifneq ($(filter gemfs_sanity,$(MAKECMDGOALS)),)
+    cflags += -DGEMFS_SANITY 
+endif
+
+ifneq ($(filter test_user,$(MAKECMDGOALS)),)
+    cflags += -DTEST_USER 
 endif
 
 clean:
@@ -106,5 +114,5 @@ link_kernel ${kernel_obj} ${drivers_obj}:
 	${ld} ${ldflags_kernel} -o ${kernel_link} ${kernel_entry_obj} ${drivers_obj} ${kernel_obj}
 	x86_64-elf-objcopy -O binary ${kernel_link} ${kernel_flat}
 	dd if=${kernel_flat} of=${output_img} bs=512 seek=500 conv=notrunc
-	dd if=obj/kernel_setup.bin of=${output_img} bs=512 seek=648 conv=notrunc
+	dd if=obj/kernel_setup.bin of=${output_img} bs=512 seek=350 conv=notrunc
 	dd if=program_bin/shell.elf of=${output_img} bs=512 seek=1500 conv=notrunc

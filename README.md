@@ -1,4 +1,7 @@
 # ChudOS Manual
+
+# THIS IS OUTDATED!!! This has not been modified sincec like v0.2 please just dont read it it's mostly wrong, the only thing correct is probably the parts about the bootloader.
+
 ---
 ChudOS is a small hobby kernel I've been working on for the past 2 months.
 This manual contains technical explanations of the OS and how it works. Please note that you need a decent grip on the principles of computer science to understand this at all (What an OS is, different CPU architectures, pointers, etc.). I hope I've written it to where if you understand that, you wont necessarily need to 
@@ -6,7 +9,7 @@ This manual contains technical explanations of the OS and how it works. Please n
 ## 1.1 Architecture
 ChudOS runs on x86-64 Intel and AMD CPU's. It makes use of the legacy BIOS
 ## 1.2 RAM
-ChudOS uses 4 level paging<sup>1, 2</sup> and currently supports 256 MiB of Virtual RAM, and does not check for the amount of physical RAM.
+ChudOS uses 4 level paging<sup>1, 2</sup> and currently supports 256 MiB of Virtual RAM, and checks for the physical amount of RAM through the bios E820 interrupt.
 # 2.0 OS components
 ## 2.1 Bootloader
 This project uses a non standard version of a bootloader, normally bootloaders are in 2 stages where the first loads the second and the second does complex tasks. This bootloader uses 3 stages of execution.

@@ -38,7 +38,7 @@ dap_kernel_setup: ; read the kernel into memory
     dw 1
     dw 0x0000
     dw 0x4000
-    dq 648
+    dq 350
 
 align 16
 dap_boot2_1: ; read the first half of the third stage into memory
@@ -218,8 +218,8 @@ print_int:
     ret
 
 load_kernel_setup_floppy:
-    ; starting LBA = 648
-    mov ax, 648
+    ; starting LBA = 350
+    mov ax, 350
     call calculate_LBA_to_CHS
 
     mov dword [floppy_target_address], 0x40000

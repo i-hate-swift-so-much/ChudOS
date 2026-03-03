@@ -193,22 +193,6 @@ void FlushTLB(){
 void EnsureEntry(uint64_t* e_addr, uint8_t flags, bool flush, int granularity){
     uint64_t fix = (*e_addr) & 0xFFFFFFFFFFFF000ULL;
     if(fix == 0){
-        #ifdef DEBUG
-            SetTextColor(YELLOW, BLACK);
-            printf("(!) Fixing address %x For ", (uint64_t)e_addr);
-            switch (granularity){
-                case 3:
-                    printf("PML4\n");
-                    break;
-                case 2:
-                    printf("PDPT\n");
-                    break;
-                case 1:
-                    printf("PD\n");
-                    break;
-            }
-        #endif
-
         void* new = malloc(KernelTask);
         
         memset(new, 0, 0x1000);
@@ -220,10 +204,6 @@ void EnsureEntry(uint64_t* e_addr, uint8_t flags, bool flush, int granularity){
         if(flush){
             FlushTLB();
         }
-        #ifdef DEBUG
-            printf("\tFix: %x\n", *e_addr);
-            SetTextColor(WHITE, BLACK);
-        #endif
     }
 }
 
@@ -600,13 +580,4 @@ uint64_t phys_addr(void* pointer){
     uint64_t* info = CalculatePagePhysicalEntryAddress(&entries);
 
     return (*info & 0xFFFFFFFFFFFFF000) | offset;
-}
-
-
-/**
- * @brief Creates a new PDPT in the PML4 table.
- * @param pml4_entry The index in the PML4 which 
- */
-void create_pdpt(uint16_t pml4_entry, uint64_t pd_entry){
-
 }

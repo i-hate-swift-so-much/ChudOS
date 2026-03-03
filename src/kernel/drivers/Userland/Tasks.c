@@ -10,6 +10,10 @@ int cur_pid = 0;
 
 uint8_t Program_Buffer[0x40000];
 
+void KillTask(int PID){
+    TaskManager[PID].ProcessState = KILL_PROCESS_STATE;
+}
+
 int FindFreePID(){
     for(int i = 0; i < TASK_COUNT; i++){
         if(TaskManager[i].Exists == false){
@@ -242,7 +246,7 @@ void* LoadElf(uint8_t Drive, uint64_t LBA, size_t Program_Size){
         SetTextColor(WHITE, BLACK);
     #endif
 
-    RegisterTask(start_base, elf_header->e_entry, 5, USER_PRIORITY, stack_base+4088, NewPML4);
+    RegisterTask(start_base, elf_header->e_entry, 5, USER_PRIORITY, stack_base+4080, NewPML4);
 
     mem_set_cr3(PrevPML4);
 
