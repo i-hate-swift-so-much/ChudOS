@@ -23,6 +23,7 @@ floppy_w_check=0
 floppy_sanity_check=0
 only_run=0
 gemfs_sanity_check=0
+test_user=0
 
 if [[ ! -f "$build_count_file" ]]; then
     echo 0 > "$build_count_file"
@@ -60,7 +61,7 @@ for arg in "$@"; do
     elif [[ "$arg" == "floppy_read_sanity_check" || "$arg" == "-fdc-r-sc" && $floppy_r_check == 0 ]]; then
         args+=" floppy_sanity_r"
         floppy_r_check=1
-    elif [[ "$arg" == "isa_dma_sanity_check" || "$arg" == "-fdc-w-sc" && $floppy_w_check == 0 ]]; then
+    elif [[ "$arg" == "floppy_write_sanity_check" || "$arg" == "-fdc-w-sc" && $floppy_w_check == 0 ]]; then
         args+=" floppy_sanity_w"
         floppy_w_check=1
     elif [[ "$arg" == "only_run" || "$arg" == "-or" ]]; then
@@ -68,8 +69,9 @@ for arg in "$@"; do
     elif [[ "$arg" == "gemfs_sanity_check" || "$arg" == "-gemfs-sc" && $gemfs_sanity_check == 0 ]]; then
         args+=" gemfs_sanity"
         gemfs_sanity_check=1
-    elif [[ "$arg" == "test_user" || "$arg" == "-tu" ]]; then
+    elif [[ "$arg" == "test_user" || "$arg" == "-tu" && $test_user == 0 ]]; then
         args+=" test_user"
+        test_user=1
     fi
 done
 

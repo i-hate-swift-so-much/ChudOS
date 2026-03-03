@@ -19,7 +19,9 @@ The purpose of the first stage of the bootloader is simply to load the second st
 The purpose of the second stage of the bootloader is to prepare the protected mode environment for the 3rd stage. See source 13 for explanation on protected mode.
 ### 2.1.3 Bootloader Stage 3
 The purpose of the third stage of the bootloader is to prepare the long mode environment for the kernel and set up level 4 paging. See sources 2 and 15 for an explanation on level 4 paging and long mode.
-## 2.2 Kernel
+## 2.2 Kernel Setup
+The purpose of the kernel setup is to just copy the kernel from low to high memory, in the future this will also have a Floppy and AHCI driver to load the kernel once it's larger in size.
+## 2.3 Kernel
 Currently, the kernel can do like 10 things. 
 1. Print VGA text to the screen through VGA.h
 2. Use a primitve formatter for printing (supports \n, \t, \b, and wrapping) through std.h.
@@ -30,75 +32,48 @@ Currently, the kernel can do like 10 things.
 7. Properly panics when an issue can't be resolved. (KernelPanic.h)
 8. Set up the PIC. (PIC.h)
 9. Map memory through various structs. (Memory.h)
-10. Do a VERY simple syscall. (syscall.h)
+10. Use the Floppy Drive Controller
+11. Do two system calls.
+12. Run a user program.
 
 I wrote this off the top of my head so be weary.
 # 3.0 Building, Running, and Debugging
 ## 3.1 Requirements
-In order to properly run/build ChudOS, you must install the following packages through a package manager of your choice. (apt for Ubuntu/Debian, pacman for Arch Linux, homebrew for Mac).
-1. NASM (Netwide Assembler) | sudo apt install nasm/sudo pacman -S nasm/brew install nasm
+In order to properly run/build ChudOS, you must install the following packages through HOMEBREW!!! THIS ONLY WORKS WITH HOMEBREW
+1. NASM (Netwide Assembler) | brew install nasm
 2. x86_64-elf-gcc (For compiling C++ code) | brew install x86_64-elf-gcc (only available prebuilt through homebrew)
 3. x86_64-elf-ld (For linking C++ code) | brew install x86_64-elf-ld (only available prebuilt through homebrew)
-4. qemu-system-x86_64 (For running the OS) | sudo apt install qemu-system-x86_64/sudo pacman -S qemu/brew install qemu-system-x86_64
-5. make (For automating assembling/compiling/linking) | sudo apt install make/sudo pacman -S make/brew install make
+4. qemu-system-x86_64 (For running the OS) | brew install qemu-system-x86_64
+5. make (For automating assembling/compiling/linking) | brew install make
 
 ## 3.2 Optional Software
 If you plan to edit the OS's source code or debug the OS in any way, I recommend combining the qemu.log with ImHex or any other hex editor for debugging, I use ImHex because it has a built in disassembler for seeing exactly which instruction caused an error. For editing the source code, I just use visual studio code since it has an easy to use GUI, but if you plan to edit the system through the CLI, just use nano, it comes pre-installed on every linux distribution and MacOS version.
 
 ## 3.3 Building
-To build OS, simply run the 'make' command while in the projects main directory, the kernel image will be located at 'bin/ChudOS.img'.
+To build OS, I made a shell script to do it for you. The name of the shell script is ./build.sh and there are numerous flags listed below.
+| Argument | Psuedonym | Purpose |
+|---|---|---|
+| debug | -d | Turns on debugging mode, note that this will make the OS significantly slower and results in random crashes which I don't feel like investigating. |
+| run-qemu | -rq | Tells the script that after building, the produced image should be launched with QEMU. |
+| run-legacy | -rl | Tells the script that after building, the produced image should be launched with QEMU on a floppy drive. This is the only really function way to run the OS. |
+| isa_dma_sanity_check | -isa-dma-sc | Every time an ISA DMA transaction is set up, it will be printed to the terminal. |
+| floppy_sanity_check | -fdc-sc | Every time a floppy read/write occurs, it will be printed to the terminal. (VERY VERY VERY SLOW) |
+| floppy_read_sanity_check | -fdc-r-sc | Every time a floppy read occurs, it will be printed to the terminal. Overriden by -fdc-sc. (VERY VERY SLOW) |
+| floppy_write_sanity_check | -fdc-w-sc | Every time a floppy write occurs, it will be printed to the terminal. Overriden by -fdc-sc. (VERY VERY SLOW) |
+| only_run | -or | Tells the script that it should skip the build process and just run pre-existing kernel. |
+| gemfs_sanity_check | -gemfs-sc | Whenever something important happens with the Gem Filesystem, it will be printed to the terminal. |
+| test_user | -tu | When the kernel is ready, it will create a Hello World user program that prints to the screen. (See SetupShell() in kernel.c)
 
-## 3.4 Running
-To run the OS, simply build it and then run one of the below commands.
-For general use:
-> qemu-system-x86_64 -drive format=raw,file=bin/ChudOS.img -boot c -no-reboot -monitor stdio -device VGA,vgamem_mb=3
-For debugging:
-> qemu-system-x86_64 -drive format=raw,file=bin/ChudOS.img -boot c -no-reboot -d int,in_asm -D qemu.log -monitor stdio -device VGA,vgamem_mb=3
-If you do debugging, a log of every instruction and interrupt that is generated by QEMU will be put into 'qemu.log'
-
-## 3.5 Debugging
-Below is some basic information for debugging using a hex editor and how to read debug screens.
-
-### 3.5.1 Reading Debug Screens
-Upon a CPU exception, the kernel will display an error screen specified to the exception, if a debug screen for an exception is not yet implemented, then it will display a kernel panic along with the exception number.
-Implemented exceptions:
-1. Page Fault (#PF)
-2. General Protection Fault (#GF)
-3. Invalid Opcode (#UP)
-4. Kernel Panic (for exceptions which don't have a debug screen)
-Screenshots of debug screens:
-
-1. #PF
-![Page Fault](examples/PF_example.png)
-2. #GF
-![General Protection Fault](examples/GPF_example.png)
-3. #UD
-![Invalid Opcode](examples/UP_Example.png)
-4. Kernel Panic
-![Kernel Panic](examples/Panic_example.png)
-
-You can force these exceptions to occur through the following shortcuts
-1. Press CTRL+ALT+TAB to force a page fault
-2. Press CTRL+ALT+ESC to force a kernel panic
-3. Press CTRL+ALT+LSHIFT to force an Invalid Opcode fault
-4. Press CTRL+ALT+BACKSPACE to force a general protection fault
-
-These shortcuts are also displayed at boot.
-
-### 3.5.2 Getting the address of an instruction
-The kernel's code is loaded at physical address 0x70000, however, its position on the hard drive is 0x32000.
-Due to this, if you want to find out what instruction is printed
+## 3.4 Kernel Panic
+When a kernel panic occurs, all user programs will halt, the screen will clear,  the message "HAPPENING ALERT" will be printed to the terminal, and a register dump will follow.
 
 # 4.0 Roadmap
 In the future I plan to finish the following files:
-1. PCI.h/PCI.cpu | The PCI slots
-2. AHCI.h/AHCI.cpu | The hard drive controller
-3. Tasks.h/Tasks.cpp | The task manager (reports on C)
-4. Timer.h/Timer.cpp | The scheduler
+1. AHCI.h/AHCI.cpu | The hard drive controller
 
 Along with this, I plan to create some new additions!
-1. A file manager API
-2. A shell (with support for .sh files)
+1. A file manager API (in the works)
+2. A shell (with custom language and .sh support)
 3. Basic CLI applications based on the GNU library
 4. Expanded syscalls
 5. A standard library for user applications

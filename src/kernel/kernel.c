@@ -162,7 +162,7 @@ void kernel_startup(uint64_t boot_drive){
 
     printf("ChudOS Version %i.%i.%i:%i%c\n", VERSION_MAJOR, VERSION_MINOR, VERSION_PATCH, BUILD, class);
 
-    #ifdef test_user
+    #ifdef TEST_USER
         SetUpShell();
     #endif
 
