@@ -1,7 +1,5 @@
 # ChudOS Manual
 
-# THIS IS OUTDATED!!! This has not been modified sincec like v0.2 please just dont read it it's mostly wrong, the only thing correct is probably the parts about the bootloader.
-
 ---
 ChudOS is a small hobby kernel I've been working on for the past 2 months.
 This manual contains technical explanations of the OS and how it works. Please note that you need a decent grip on the principles of computer science to understand this at all (What an OS is, different CPU architectures, pointers, etc.). I hope I've written it to where if you understand that, you wont necessarily need to 
