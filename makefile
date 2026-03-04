@@ -1,4 +1,4 @@
-.PHONY: clean debug isa_sanity floppy_sanity_r floppy_sanity_w gemfs_sanity test_user all
+.PHONY: clean debug isa_sanity floppy_sanity_r floppy_sanity_w gemfs_sanity test_user elf_sanity all
 
 VERSION_MAJOR ?= 0
 VERSION_MINOR ?= 0
@@ -63,6 +63,10 @@ endif
 
 ifneq ($(filter test_user,$(MAKECMDGOALS)),)
     cflags += -DTEST_USER 
+endif
+
+ifneq ($(filter elf_sanity,$(MAKECMDGOALS)),)
+    cflags += -DELF_SANITY 
 endif
 
 clean:

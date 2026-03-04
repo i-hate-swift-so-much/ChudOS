@@ -3,8 +3,6 @@
 #include "Userland/Tasks.h"
 
 void KernelPanic(InterruptRegistersError* regs){
-    cls();
-
     uint64_t CR3;
     asm volatile(
         "movq %%cr3, %%rax\n"
@@ -36,10 +34,11 @@ void KernelPanic(InterruptRegistersError* regs){
     printf("SS: %x\n\t\t", regs->ss);
     printf("RFLAGS: %x\n\t\t", regs->rflags);
     printf("ERROR CODE: %x\n", regs->error_code);
+    printf("MISC\n\tCUR_PID: %x\n", TASKMGR_get_current());
     if(regs->rip >= VIRTUAL_MEMORY_BARRIER){
         printf("This panic seems to have originated from kernel space, please report this on the github issues page.\n");
     }else{
-        printf("This panic seems to have originated from user space, the current PID is %i\n", TASKMGR_get_current());
+        printf("This panic seems to have originated from user space.");
     }
     
     printf("You can now turn off your computer.");

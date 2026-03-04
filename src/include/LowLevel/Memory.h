@@ -102,6 +102,16 @@ typedef struct{
     uint16_t Page_Offset;
 }PageEntries ;
 
+struct SignalDecriptor{
+
+};
+
+struct FileDescriptor{
+    char directory[256];
+    uint8_t flags;
+    uint64_t last_point;
+};
+
 struct Task_S{
     uint32_t ProcessID;
     TaskMemoryDefinition MemoryData;
@@ -113,6 +123,7 @@ struct Task_S{
     uint32_t SleepCycle; // how many cycles the program has been sleeping, used so the task can request to sleep
     uint32_t RequestedSleepCycle; // the program sets this so it "sleeps"
     uint64_t Base_PML4; // the base PML4 address that will be loaded into CR3
+    //struct FileDescriptor Descriptors[64];
     bool Exists; // set to true if the task is in existence
 };
 

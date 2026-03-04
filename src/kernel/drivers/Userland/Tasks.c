@@ -59,7 +59,7 @@ int RegisterTask(uint64_t base_vaddr, uint64_t entry_point, uint64_t page_count,
     cur_task->SavedRegisters.ss = 0x20 | 0x3; // user data segment
     cur_task->Base_PML4 = pml4;
     cur_task->Exists = true;
-    #ifdef DEBUG
+    #ifdef ELF_SANITY
         SetTextColor(LCYAN, BLACK);
         printf("Registered a task\n\tPID = %x\n\tBASE_ADDR = %x\n\tENTRY = %x\n\tBASE_PML4 = %x\n", free, base_vaddr, entry_point+base_vaddr, pml4);
         SetTextColor(WHITE, BLACK);
@@ -120,7 +120,7 @@ void ELF_DumpHeader(ElfHeader64* header){
 void* LoadElf(uint8_t Drive, uint64_t LBA, size_t Program_Size){
     memset(Program_Buffer, 0, 0x40000);
     
-    #ifdef DEBUG
+    #ifdef ELF_SANITY
         SetTextColor(LCYAN, BLACK);
         printf("Reading ELF file from drive %i LBA %i with a size of %i\n", Drive, LBA, Program_Size);
     #endif
@@ -136,14 +136,14 @@ void* LoadElf(uint8_t Drive, uint64_t LBA, size_t Program_Size){
         elf_header->e_machine != EM_x86_64 || 
         elf_header->e_phentsize != 0x38
     ){ 
-        #ifdef DEBUG
+        #ifdef ELF_SANITY
             SetTextColor(LCYAN, BLACK);
             printf("E_TYPE: %i\nEXPECTED: %i\nE_MACHINE: %i\nEXPECTED: %i\nE_PHENTSIZE: %x\nEXPECTED: %x\n", elf_header->e_type, ET_EXEC, elf_header->e_machine, EM_x86_64, elf_header->e_phentsize, 0x38);
         #endif
         return NULL;
     }
 
-    #ifdef DEBUG
+    #ifdef ELF_SANITY
         SetTextColor(LCYAN, BLACK);
         printf("Real program\n");
         ELF_DumpHeader(elf_header);
@@ -156,9 +156,11 @@ void* LoadElf(uint8_t Drive, uint64_t LBA, size_t Program_Size){
 
     uint64_t NewPML4 = Create_User_Memory();
     
-    uint64_t base = 0x9000000;
+    uint64_t base = 0x400000;
     uint64_t stack_base = base;
-    printf("BASE: %x\n", base);
+    #ifdef ELF_SANITY
+        printf("BASE: %x\n", base);
+    #endif
 
     uint64_t PrevPML4 = PML4_Physical;
     
@@ -175,8 +177,10 @@ void* LoadElf(uint8_t Drive, uint64_t LBA, size_t Program_Size){
     stackpage.virtual_address = base & ~0xFFF;
     stackpage.flags = stackperms;
 
-    printf("PHYS: %x\n", stackpage.physical_address);
-    printf("VIRT: %x\n", stackpage.virtual_address);
+    #ifdef ELF_SANITY
+        printf("PHYS: %x\n", stackpage.physical_address);
+        printf("VIRT: %x\n", stackpage.virtual_address);
+    #endif
 
     alloc_page(&stackpage);
 
@@ -200,7 +204,9 @@ void* LoadElf(uint8_t Drive, uint64_t LBA, size_t Program_Size){
         memsz += cur_header->p_memsz;
         if(i == 0){ start_offset = cur_header->p_offset; }
     }
-    printf("NUM: %x\nMEMSZ: %x\n", e_phnum, memsz);
+    #ifdef ELF_SANITY
+        printf("NUM: %x\nMEMSZ: %x\n", e_phnum, memsz);
+    #endif
 
     PagePermissions flags;
     flags.flags = USER_FLAGS;
@@ -215,7 +221,7 @@ void* LoadElf(uint8_t Drive, uint64_t LBA, size_t Program_Size){
         to_alloc.physical_address = CalculatePageAddress(&free);
         to_alloc.virtual_address = base;
 
-        #ifdef DEBUG
+        #ifdef ELF_SANITY
             SetTextColor(LCYAN, BLACK);
             printf("User Page Address: %x (DIV)\n", base);
             SetTextColor(WHITE, BLACK);
@@ -231,7 +237,7 @@ void* LoadElf(uint8_t Drive, uint64_t LBA, size_t Program_Size){
         to_alloc.physical_address = CalculatePageAddress(&free);
         to_alloc.virtual_address = base;
 
-        #ifdef DEBUG
+        #ifdef ELF_SANITY
             SetTextColor(LCYAN, BLACK);
             printf("User Page Address: %x (MOD)\n", base);
         #endif
@@ -241,7 +247,7 @@ void* LoadElf(uint8_t Drive, uint64_t LBA, size_t Program_Size){
 
     memcpy((void*)(start_base), &Program_Buffer[start_offset], memsz);
 
-    #ifdef DEBUG
+    #ifdef ELF_SANITY
         printf("Copied\n");
         SetTextColor(WHITE, BLACK);
     #endif

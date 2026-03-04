@@ -30,6 +30,23 @@ void SetUpShell(){
     tasks_enabled = true;
 }
 
+enum GemFS_DriveIDs correct_bootdrive(uint64_t boot_drive){
+    if(boot_drive > 0x80 && boot_drive < 0x84){
+        return H0+(boot_drive-0x80);
+    }else if(boot_drive < 0x04){
+        return F0+(boot_drive);
+    }else{
+        printf("Unable to correct Boot Drive into a GemFS ID.\n");
+        asm volatile(
+            "int $0xFE\n"
+        );
+        asm volatile(
+            "cli\n"
+            "hlt\n"
+        );
+    }
+}
+
 void kernel_startup(uint64_t boot_drive){
     cls();
 
@@ -74,6 +91,8 @@ void kernel_startup(uint64_t boot_drive){
     take_print_snapshot();
     asm volatile("sti");
     print_success_snapshot("SUCCESS\n", 0);
+
+    enum GemFS_DriveIDs boot_driveid = correct_bootdrive(boot_drive);
 
     PrintCycles();
     print(" Setting up paging ", 0);
@@ -152,7 +171,7 @@ void kernel_startup(uint64_t boot_drive){
     take_print_snapshot();
     printf("\n");
 
-    GemFS_Init(boot_drive);
+    GemFS_Init(boot_driveid);
 
     char class = 'u';
 
@@ -161,6 +180,8 @@ void kernel_startup(uint64_t boot_drive){
     #endif
 
     printf("ChudOS Version %i.%i.%i:%i%c\n", VERSION_MAJOR, VERSION_MINOR, VERSION_PATCH, BUILD, class);
+
+    printf("Search for dev resulted in index %i\n", GemFS_Directory_to_Index(0, 1, "/dev/urand"));
 
     #ifdef TEST_USER
         SetUpShell();

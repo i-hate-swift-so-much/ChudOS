@@ -4,6 +4,9 @@
 1. Interrupt Descriptor Table
 2. PCI Bus Scanning
 3. Page fault handler
+4. Floppy disk reads/writes
+5. ELF Loader
+6. Multitasking
 ### Bootloader
 1. Loads boot1.s, boot2.s and the kernel image into memory
 2. Sets up simple paging
@@ -45,3 +48,18 @@ a. Every process gets it's own PML4 table, and the 511th is memcpy'd from the Ke
 3. IDE driver for testing purposes and backwards compatibility.
 ### Known errors
 1. [boot0](src/boot/boot0.s)/[boot1](src/boot/boot1.s) don't properly read from a liveboot USB on real hardware since the BIOS exposes it as a floppy and often remaps CHS
+2. Dynamic memory allocation is very unstable.
+
+## v0.1.6
+### Changes
+1. Extensive README.md update
+2. Tasks now work.
+3. Floppy driver now finished with LBA conversions.
+4. Dynamic memory allocation is now stable.
+5. Added write/exit syscalls.
+6. Added custom file system.
+7. Added more arguments to ./build.sh
+
+### Todo
+1. Implement IDE and AHCI support.
+2. Add read/open/fork syscalls

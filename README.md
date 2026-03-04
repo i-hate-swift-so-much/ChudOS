@@ -61,6 +61,7 @@ To build OS, I made a shell script to do it for you. The name of the shell scrip
 | only_run | -or | Tells the script that it should skip the build process and just run pre-existing kernel. |
 | gemfs_sanity_check | -gemfs-sc | Whenever something important happens with the Gem Filesystem, it will be printed to the terminal. |
 | test_user | -tu | When the kernel is ready, it will create a Hello World user program that prints to the screen. (See SetupShell() in kernel.c)
+| elf_sanity | -elf-sc | When a task is created, the elf loader dumps lots of information to the terminal.
 
 ## 3.4 Kernel Panic
 When a kernel panic occurs, all user programs will halt, the screen will clear,  the message "HAPPENING ALERT" will be printed to the terminal, and a register dump will follow.

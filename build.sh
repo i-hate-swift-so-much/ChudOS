@@ -24,6 +24,7 @@ floppy_sanity_check=0
 only_run=0
 gemfs_sanity_check=0
 test_user=0
+elf_sanity_check=0
 
 if [[ ! -f "$build_count_file" ]]; then
     echo 0 > "$build_count_file"
@@ -72,6 +73,9 @@ for arg in "$@"; do
     elif [[ "$arg" == "test_user" || "$arg" == "-tu" && $test_user == 0 ]]; then
         args+=" test_user"
         test_user=1
+    elif [[ "$arg" == "elf_sanity" || "$arg" == "-elf-sc" && $elf_sanity_check == 0 ]]; then
+        args+=" elf_sanity"
+        elf_sanity_check=1
     fi
 done
 

@@ -188,9 +188,8 @@ void FlushTLB(){
  * @param e_addr The virtual address of the entry.
  * @param flags The flags for the new entry.
  * @param flush Whether or not a full TLB flush should occur if a new entry is made.
- * @param granularity Only used for debugging, shows which level of the PML4 it is.
  */
-void EnsureEntry(uint64_t* e_addr, uint8_t flags, bool flush, int granularity){
+void EnsureEntry(uint64_t* e_addr, uint8_t flags, bool flush){
     uint64_t fix = (*e_addr) & 0xFFFFFFFFFFFF000ULL;
     if(fix == 0){
         void* new = malloc(KernelTask);
@@ -217,18 +216,17 @@ uint64_t* CalculatePagePhysicalEntryAddress(PageEntries* entries){
     }
     uint64_t* PML4_Pointer = (uint64_t*)((PML4_Physical + (entries->PML4_Entry * 8)) + 0xffff800000000000ULL);
     
-    EnsureEntry(PML4_Pointer, flags, true, 3);
+    EnsureEntry(PML4_Pointer, flags, true);
 
     uint64_t* PDPT_Pointer = (uint64_t*)(((*PML4_Pointer & 0xFFFFFFFFF000ULL) + (entries->PDPT_Entry * 8)) + 0xffff800000000000ULL);
 
-    EnsureEntry(PDPT_Pointer, flags, true, 2);
+    EnsureEntry(PDPT_Pointer, flags, true);
 
     uint64_t* PD_Pointer = (uint64_t*)(((*PDPT_Pointer & 0xFFFFFFFFF000ULL) + (entries->PD_Entry * 8)) + 0xffff800000000000ULL);
 
-    EnsureEntry(PD_Pointer, flags, true, 1);
+    EnsureEntry(PD_Pointer, flags, true);
 
     uint64_t* PT_Pointer = (uint64_t*)(((*PD_Pointer & 0xFFFFFFFFF000ULL) + (entries->PT_Entry * 8)) + 0xffff800000000000ULL);
-
 
     return PT_Pointer;
 }
@@ -249,6 +247,9 @@ void* alloc_page(PageDetails* page){
     uint8_t page_bit = mem_GetBit(PML4_EntryP, PDPT_EntryP, PD_EntryP, PageP); // makes sure the page is actually available
     
     if(page_bit == 0){
+        // this must be here, otherwise CalculatePagePhysicalEntryAddress will allocated to the target page, otherwise we have to set a custom physical address which destroys mmio
+        mem_SetBit(DeconstructedP.PML4_Entry, DeconstructedP.PDPT_Entry, DeconstructedP.PD_Entry, DeconstructedP.PT_Entry);
+
         // the physical address of the page entry we want to set
         uint64_t* Page_Entry = CalculatePagePhysicalEntryAddress(&Deconstructed);
 
@@ -268,10 +269,6 @@ void* alloc_page(PageDetails* page){
         print("Page unavailable\n", 0);
         return (void*)(page->virtual_address);
     }
-
-    PageEntries physicalData = ExtractPageEntries(page->physical_address);
-
-    mem_SetBit(physicalData.PML4_Entry, physicalData.PDPT_Entry, physicalData.PD_Entry, physicalData.PT_Entry);
 
     return (void*)(page->virtual_address);
 }; 

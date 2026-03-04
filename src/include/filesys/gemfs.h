@@ -72,4 +72,10 @@ void GemFS_LoadPartitionTable(enum GemFS_DriveIDs DriveID);
 
 void GemFS_mkdir(enum GemFS_DriveIDs DriveID, uint8_t Partition, char* name, size_t name_len, uint8_t flags, uint64_t ParentIndex);
 
+uint64_t GemFS_Find_Index_By_Name(enum GemFS_DriveIDs DriveID, uint8_t Partition, char* name, uint64_t Parent_Index);
+
+void GemFS_DumpEntryData(struct GemFS_Entry entry);
+
+uint64_t GemFS_Directory_to_Index(enum GemFS_DriveIDs DriveID, uint8_t Partition, char* directory);
+
 void GemFS_Init(enum GemFS_DriveIDs DriveID);
