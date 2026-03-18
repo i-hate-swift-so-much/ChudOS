@@ -282,13 +282,13 @@ fill_pt:
     xor edx, edx
     mov ecx, 0
 
-    ; fills 64 page tables (64 MiB)
+    ; fills 64 page tables (128 MiB)
     .kfill_loop:
         cmp ecx, 32768
         je fill_pt.kfill_done
 
         push eax
-        or eax, 0b100000011
+        or eax, 0b000000011
         mov [edi], eax
         mov [edi+4], edx ; edx is zero
         pop eax

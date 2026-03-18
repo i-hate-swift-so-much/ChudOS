@@ -6,6 +6,8 @@
 #include "Display/VGA.h"
 #include "stdbool.h"
 
+#define barrier() __asm__ __volatile__("" ::: "memory")
+
 /*
     This header provides functions for the allocation of pages in virtual memory,
     along with various structs defining how memory should behave. Critical in the
@@ -20,7 +22,7 @@
 #define USER_FLAGS 0b00000111
 #define USER_FLAGS_UNCACHEABLE 0b00010111
 
-#define E820_BUFFER_ADDRESS 0xF000
+#define E820_BUFFER_ADDRESS 0xffff80000000F000
 
 // This is pratically a bitmap divided into 8 chunks.
 // If a bit equals one, it's subesquent page is loaded.
@@ -49,7 +51,7 @@ struct PhysicalMemoryPageDescriptorTable_s{
 typedef struct PhysicalMemoryPageDescriptorTable_s PhysicalMemoryPageDescriptorTable;
 
 struct PhysicalMemoryMapLevel4_s{
-    PhysicalMemoryPageDescriptorTable pagedescriptors[2];
+    PhysicalMemoryPageDescriptorTable pagedescriptors[512];
 };
 
 typedef struct PhysicalMemoryMapLevel4_s PhysicalMemoryMapLevel4;
@@ -57,7 +59,7 @@ typedef struct PhysicalMemoryMapLevel4_s PhysicalMemoryMapLevel4;
 struct PagePermissions_s{
     uint16_t flags; // directly maps to bits 0 through 7 of a page table entry
     bool Execute_Disable; // bit 63 of a page table entry, disables execution of a page
-}__attribute__((packed));
+};
 
 typedef struct PagePermissions_s PagePermissions;
 
@@ -89,7 +91,7 @@ typedef struct{
 
 // This should only ever include the data about a task's actually code data and bss segment.
 // The data about a task's heap are in HeapDesignator
-typedef struct{
+typedef volatile struct{
     uint64_t BaseVirtualAddress;
     uint64_t PageCount;
 }TaskMemoryDefinition ;
@@ -108,11 +110,13 @@ struct SignalDecriptor{
 
 struct FileDescriptor{
     char directory[256];
+    uint64_t gemfs_index;
     uint8_t flags;
     uint64_t last_point;
+    bool used;
 };
 
-struct Task_S{
+volatile struct Task_S{
     uint32_t ProcessID;
     TaskMemoryDefinition MemoryData;
     InterruptRegisters SavedRegisters; // grabbed from "IDT.h", also used when an interrupt is triggered from userland
@@ -123,8 +127,29 @@ struct Task_S{
     uint32_t SleepCycle; // how many cycles the program has been sleeping, used so the task can request to sleep
     uint32_t RequestedSleepCycle; // the program sets this so it "sleeps"
     uint64_t Base_PML4; // the base PML4 address that will be loaded into CR3
-    //struct FileDescriptor Descriptors[64];
+    struct FileDescriptor Descriptors[64];
+    char Current_Working_Directory[256];
     bool Exists; // set to true if the task is in existence
+};
+
+/**
+ * Implemented in v0.2.0, keeps track of how many times a physical page is referenced and it's flags.
+ * A physical frame can only be freed from the bitmap if it's refcount is zero.
+ * The flags byte is formatted as follows.
+ * +------------------------------------+
+ * | 7                                0 |
+ * +------------------------------------+
+ * |            R           | K | D | U |
+ * |5                      0|1 0|1 0|1 0|
+ * +------------------------+---+---+---+
+ * U = Whether or not the page is being used.
+ * D = Whether or not the page is dirty. If it is, it CAN NOT be allocated.
+ * K = Whether or not the page is owned by the kernel.
+ * R = Reserved for future implementations.
+ */
+struct Physical_Frame{
+    uint32_t refcount;
+    uint8_t flags;
 };
 
 typedef struct Task_S Task;
@@ -146,14 +171,14 @@ struct PageMapLevel4{
     uint64_t entries[512];
 }__attribute__((aligned(4096)));
 
-extern Task* KernelTask;
-extern Task TaskManager[512];
+extern volatile Task* KernelTask;
+extern volatile Task TaskManager[512];
 
 extern uint64_t PhysicalPagesUsed;
 
-uint8_t mem_GetBit(uint16_t PageMapLevel4, uint16_t PageDescriptorTable, uint16_t PageTable, uint16_t Page);
+uint8_t mem_GetBit(uint64_t address);
 
-void mem_SetBit(uint16_t PageMapLevel4, uint16_t PageDescriptorTable, uint16_t PageTable, uint16_t Page);
+void mem_SetBit(uint64_t address);
 
 // literally memset except it copies by the word.
 void memsetw(void* dest, uint16_t value, size_t bytes);
@@ -183,20 +208,24 @@ PageDetails ParsePTE(uint64_t* PTE);
 
 void* malloc_specific(Task* TaskDetails, uint64_t RequestedAddress, PagePermissions* permissions);
 
+void* alloc_page_no_invlpg(PageDetails* page);
+
 void mem_bitmap_dump(uint16_t PT);
 
-PageEntries FindNextFreePhysical();
+uint64_t FindNextFreePhysical();
 
-void Enumerate_E820();
+void Enumerate_E820(bool do_dirty);
 
-void mem_set_cr3(uint64_t addr);
+void mem_set_cr3(uint64_t addr, bool sti);
 
 uint64_t Create_User_Memory();
 
 uint64_t phys_addr(void* pointer);
 
-extern uint64_t Kernel_PML4_Physical;
-extern uint64_t PML4_Physical;
+extern volatile uint64_t Kernel_PML4_Physical;
+extern volatile uint64_t PML4_Physical;
 
-extern uint64_t available_mem;
-extern uint64_t total_mem;
+extern volatile struct Physical_Frame* phys_frames;
+
+extern volatile uint64_t available_mem;
+extern volatile uint64_t total_mem;

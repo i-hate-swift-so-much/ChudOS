@@ -4,9 +4,9 @@
 
 #define TASK_COUNT 512
 
-Task TaskManager[512];
+volatile Task TaskManager[512];
 
-int cur_pid = 0;
+volatile int cur_pid = 0;
 
 uint8_t Program_Buffer[0x40000];
 
@@ -32,6 +32,19 @@ int SetupTaskStack(Task* task, uint64_t* args){
 }
 
 /**
+ * @brief Finds a free file descriptor entry in preparation for creation
+ * @param PID the PID to search
+ */
+int FindFreeFileDescriptor(int PID){
+    Task task = TaskManager[PID];
+    for(int i = 0; i < 64; i++){
+        if(task.Descriptors[i].used == false){
+            return i;
+        }
+    }
+}
+
+/**
  * @brief Registers a task in the task manager, also creates the tasks memory space
  * @param base_vaddr The starting virtual address of the task
  * @param entry_point The e_entry from the elf header
@@ -39,9 +52,7 @@ int SetupTaskStack(Task* task, uint64_t* args){
  * @param maxticks How many ticks (the priority) of the program. (See Tasks.h lines 7-9)
  * @param stack_start The beginning virtual address of the programs stack.
  * @param PML4 The physical address of the new user memory created with Create_User_Memory()
- * @return 0 = Success
- * @return 1 = No free PID's
- * @return 2 = Couldn't create stack
+ * @return Returns the PID
  */
 int RegisterTask(uint64_t base_vaddr, uint64_t entry_point, uint64_t page_count, uint8_t maxticks, uint64_t stack_start, uint64_t pml4){
     int free = FindFreePID();
@@ -51,20 +62,24 @@ int RegisterTask(uint64_t base_vaddr, uint64_t entry_point, uint64_t page_count,
     cur_task->MemoryData.BaseVirtualAddress = base_vaddr;
     cur_task->MemoryData.PageCount = page_count;
     cur_task->MaxTicks = maxticks;
-    cur_task->ProcessState = READY_PROCESS_STATE;
+    //cur_task->ProcessState = READY_PROCESS_STATE;
     cur_task->SavedRegisters.cs = 0x18 | 0x3; // user code segment
     cur_task->SavedRegisters.rsp = stack_start;
     cur_task->SavedRegisters.rbp = stack_start;
     cur_task->SavedRegisters.rip = entry_point+base_vaddr;
     cur_task->SavedRegisters.ss = 0x20 | 0x3; // user data segment
     cur_task->Base_PML4 = pml4;
+
+    cur_task->Descriptors[0].used = true;
+    cur_task->Descriptors[1].used = true;
+
     cur_task->Exists = true;
     #ifdef ELF_SANITY
         SetTextColor(LCYAN, BLACK);
         printf("Registered a task\n\tPID = %x\n\tBASE_ADDR = %x\n\tENTRY = %x\n\tBASE_PML4 = %x\n", free, base_vaddr, entry_point+base_vaddr, pml4);
         SetTextColor(WHITE, BLACK);
     #endif
-    return 0;
+    return free;
 }
 
 /**
@@ -109,6 +124,16 @@ void ELF_DumpHeader(ElfHeader64* header){
     printf("\tPROGRAM HEADER SIZE: %x\n", header->e_phentsize);
     printf("\tPROGRAM HEADER COUNT: %x\n", header->e_phnum);
     SetTextColor(WHITE, BLACK);
+}
+
+void LoadElf_GemFS(enum GemFS_DriveIDs DriveID, uint8_t Partition, uint64_t Blocks, uint64_t Index){
+    struct GemFS_Entry entry = GemFS_ReadEntry(DriveID, Partition, Index);
+
+    uint64_t LBA = GemFS_BlockToLBA(DriveID, Partition, entry.Start);
+
+    uint64_t BS = Drives[DriveID].Main_Entries[Partition].Block_Size;
+
+    LoadElf(DriveID, LBA, (Blocks*BS)*512);
 }
 
 /**
@@ -163,98 +188,72 @@ void* LoadElf(uint8_t Drive, uint64_t LBA, size_t Program_Size){
     #endif
 
     uint64_t PrevPML4 = PML4_Physical;
-    
-    mem_set_cr3(NewPML4);
+    printf("OLD PML4: %x NEW PML4: %x\n", PrevPML4, NewPML4);
+
+    mem_set_cr3(NewPML4, true);
+
+    int next_pid = FindFreePID();
+
+    int last_pid = TASKMGR_get_current();
+
+    TASKMGR_set_current(next_pid);
 
     // alloc the stack
     PageDetails stackpage;
-    PageEntries free = FindNextFreePhysical();
-    PagePermissions stackperms;
-    stackperms.flags = USER_FLAGS;
-    stackperms.Execute_Disable = true;
+    uint64_t free = FindNextFreePhysical();
 
-    stackpage.physical_address = CalculatePageAddress(&free);
+    stackpage.physical_address = free;
     stackpage.virtual_address = base & ~0xFFF;
-    stackpage.flags = stackperms;
+    stackpage.flags.flags = USER_FLAGS;
+    stackpage.flags.Execute_Disable = false;
+
+    printf("booty\n");
 
     #ifdef ELF_SANITY
         printf("PHYS: %x\n", stackpage.physical_address);
         printf("VIRT: %x\n", stackpage.virtual_address);
     #endif
+    TaskManager[next_pid].MemoryData.BaseVirtualAddress = base;
+    TaskManager[next_pid].Base_PML4 = NewPML4;
+    //TaskManager[next_pid].Exists = true;
+    TaskManager[next_pid].ProcessState = CREATION_PROCESS_STATE;
 
-    alloc_page(&stackpage);
+    void* stack = alloc_page(&stackpage);
 
-    memset((void*)base, 0, 0x1000);
-
-    base+= 0x1000; // skip the stack
+    memset(stack, 0, 0x1000);
 
     uint64_t start_base = base;
 
-    uint64_t memsz = 0;
+    base+= 0x1000; // skip the stack
 
-    uint64_t start_offset = 0;
-        
+    TaskManager[next_pid].MemoryData.PageCount++;
+
     // loop through program headers and adjust the memsz
     uint16_t e_phnum = elf_header->e_phnum;
     for(int i = 0; i < e_phnum; i++){
-        #ifdef DEBUG
+        cur_header = &headers[i];
+        #ifdef ELF_SANITY
             ELF_DumpProgramHeader(cur_header);
         #endif
-        cur_header = &headers[i];
-        memsz += cur_header->p_memsz;
-        if(i == 0){ start_offset = cur_header->p_offset; }
+        if(cur_header->p_type != PT_LOAD){ continue; }
+        void* dest = (void*)cur_header->p_vaddr+base;
+        void* src = Program_Buffer + cur_header->p_offset;
+
+        memcpy(dest, src, cur_header->p_filesz);
+
+        memset(dest + cur_header->p_filesz, 0, cur_header->p_memsz - cur_header->p_filesz);
     }
     #ifdef ELF_SANITY
-        printf("NUM: %x\nMEMSZ: %x\n", e_phnum, memsz);
+        printf("NUM: %x\n", e_phnum);
     #endif
 
-    PagePermissions flags;
-    flags.flags = USER_FLAGS;
-    flags.Execute_Disable = false;
+    TASKMGR_set_current(last_pid);
 
-    PageDetails to_alloc;
-    to_alloc.flags.flags = USER_FLAGS;
-    to_alloc.flags.Execute_Disable = false;
+    RegisterTask(start_base, elf_header->e_entry+0x1000, TaskManager[next_pid].MemoryData.PageCount, USER_PRIORITY, stack_base+4080, NewPML4);
 
-    for(int i = 0; i < memsz/0x1000; i++){
-        PageEntries free = FindNextFreePhysical();
-        to_alloc.physical_address = CalculatePageAddress(&free);
-        to_alloc.virtual_address = base;
+    TaskManager[next_pid].ProcessState = READY_PROCESS_STATE;
 
-        #ifdef ELF_SANITY
-            SetTextColor(LCYAN, BLACK);
-            printf("User Page Address: %x (DIV)\n", base);
-            SetTextColor(WHITE, BLACK);
-        #endif
-
-        alloc_page(&to_alloc);
-
-        base+=0x1000;
-    }
-
-    if(memsz % 0x1000 > 0){
-        PageEntries free = FindNextFreePhysical();
-        to_alloc.physical_address = CalculatePageAddress(&free);
-        to_alloc.virtual_address = base;
-
-        #ifdef ELF_SANITY
-            SetTextColor(LCYAN, BLACK);
-            printf("User Page Address: %x (MOD)\n", base);
-        #endif
-
-        alloc_page(&to_alloc);
-    }
-
-    memcpy((void*)(start_base), &Program_Buffer[start_offset], memsz);
-
-    #ifdef ELF_SANITY
-        printf("Copied\n");
-        SetTextColor(WHITE, BLACK);
-    #endif
-
-    RegisterTask(start_base, elf_header->e_entry, 5, USER_PRIORITY, stack_base+4080, NewPML4);
-
-    mem_set_cr3(PrevPML4);
+    mem_set_cr3(PrevPML4, true);
 
     return (void*)base;
 }

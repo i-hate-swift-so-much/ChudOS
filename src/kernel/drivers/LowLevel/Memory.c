@@ -1,10 +1,11 @@
 #include "LowLevel/Memory.h"
 #include "stdbool.h"
 #include "Libraries/Math.h"
+#include "LowLevel/Timer.h"
 
 // The physical address of the start of the PML4 table, loaded by init_mem from CR3
-uint64_t Kernel_PML4_Physical = 0;
-uint64_t PML4_Physical = 0;
+volatile uint64_t Kernel_PML4_Physical = 0;
+volatile uint64_t PML4_Physical = 0;
 
 // The following are how many of each table actually exist in memory.
 // These exist in case the kernel wants to support more memory in the future
@@ -18,51 +19,44 @@ uint64_t PML4_Physical = 0;
 uint32_t VirtualMemorySize = 0; // the total size of the virtual memory in pages
 bool mem_init = false; // used by the allocator to make sure the kernel has properly initialized virtual memory 
 
-Task* KernelTask;
+volatile struct Physical_Frame* phys_frames;
 
-PhysicalMemoryMapLevel4 KernelPMML4;
+volatile Task* KernelTask;
 
 // set by Enumerate_E820
-uint64_t available_mem;
-uint64_t total_mem;
+volatile uint64_t available_mem;
+volatile uint64_t total_mem;
 
 uint64_t PhysicalPagesUsed = 0;
 
 // Set a bit from the bitmap of physical space, used for fragmentation
-void mem_SetBit(uint16_t PageMapLevel4, uint16_t PageDescriptorTable, uint16_t PageTable, uint16_t Page){
-    uint16_t idx = Page / 64;       // which uint64_t
-    uint16_t bit = Page % 64;       // which bit inside that pt
-    KernelPMML4.pagedescriptors[PageMapLevel4].descriptors[PageDescriptorTable].tables[PageTable].PageBlocks[idx] |= (1ULL << bit);
+void mem_SetBit(uint64_t address){
+    phys_frames[address/0x1000].flags |= 1;
+    
     PhysicalPagesUsed++;
 }
 
 // Clear a bit from the bitmap of physical space, used for fragmentation
-void mem_ClearBit(uint16_t PageMapLevel4, uint16_t PageDescriptorTable, uint16_t PageTable, uint16_t Page) {
-    uint16_t idx = Page / 64;
-    uint16_t bit = Page % 64;
-    KernelPMML4.pagedescriptors[PageMapLevel4].descriptors[PageDescriptorTable].tables[PageTable].PageBlocks[idx] &= (0ULL << bit);
+void mem_ClearBit(uint64_t address) {
+    phys_frames[address/0x1000].flags &= ~1;
+    
     PhysicalPagesUsed--;
 }
 
 // Get a bit from the bitmap of physical space, used for fragmentation
-uint8_t mem_GetBit(uint16_t PageMapLevel4, uint16_t PageDescriptorTable, uint16_t PageTable, uint16_t Page){
-    uint16_t idx = Page / 64;
-    uint16_t bit = Page % 64;
-
-    uint8_t ret = (KernelPMML4.pagedescriptors[PageMapLevel4].descriptors[PageDescriptorTable].tables[PageTable].PageBlocks[idx] >> bit) & 1ULL;
-
-    return ret;
+uint8_t mem_GetBit(uint64_t address){
+    return (phys_frames[address/0x1000].flags) & 1;
 }
 
 // Sets up a new PML4 table for a user task. Follows the basic code from boot2.s. Returns the new PML4 tables physical address
 uint64_t Create_User_Memory(){
-    mem_set_cr3(Kernel_PML4_Physical);
-
     void* pml4 = malloc(KernelTask);
 
-    uint64_t* Kernel_PML4_Virtual = (uint64_t*)(Kernel_PML4_Physical + 0xffff800000000000ULL);
+    uint64_t PML4_Virtual = (PML4_Physical + VIRTUAL_MEMORY_BARRIER);
 
-    memcpy((void*)pml4, (void*)Kernel_PML4_Virtual, 0x1000);
+    memset(pml4, 0, 0x1000);
+    memcpy(pml4, (void*)PML4_Virtual, 0x1000);
+    memset(pml4, 0, 0x800);
 
     return phys_addr(pml4);
 }
@@ -78,21 +72,34 @@ void mem_sync_cr3(){
     );
 }
 
-void mem_set_cr3(uint64_t addr){
+void mem_set_cr3(uint64_t addr, bool sti){
     // set the CR3 register to the new PML4
     asm volatile(
         "cli\n"
         "movq %0, %%cr3\n"
-        : : "r" (addr) :
+        : : "r" (addr) : "memory"
     );
+    if(sti){
+        asm volatile(
+            "sti\n" 
+            : : : "memory"
+        );
+    }
     mem_sync_cr3();
-    asm volatile("sti");
+}
+
+/**
+ * @brief Flushes the entire TLB, used when modifying high level entries.
+ */
+void FlushTLB(){
+    asm volatile(
+        "movq %cr3, %rax\n"
+        "movq %rax, %cr3\n"
+    );
 }
 
 // Initialize virtual memory, only ever called at kernel boot
 void InitMem(){
-    asm("cli");
-
     mem_sync_cr3();
 
     asm volatile(
@@ -104,36 +111,27 @@ void InitMem(){
 
     // zero out the identity mapped kernel, which is no longer used after kernel_setup
     memset((void*) Kernel_PML4_Physical, 0, 0x800);
-
-    // zero out the PMPDT
-    memset(&KernelPMML4, 0, sizeof(KernelPMML4));
     
-    // allocate kernel memory
-    for(int t = 0; t < KERNEL_PT_COUNT; t++){
-        for(int p = 0; p < 512; p++){
-            mem_SetBit(0, 0, t, p);
-        }
-    }
-
     memset(TaskManager, 0, sizeof(TaskManager));
-    
-    VirtualMemorySize = PT_Count * PD_Count * PDPT_Count;
-    mem_init = true;
 
     TaskMemoryDefinition KernelMemory;
-    KernelMemory.BaseVirtualAddress = 0xffff800000000000;
-    KernelMemory.PageCount = 512;
+    KernelMemory.BaseVirtualAddress = VIRTUAL_MEMORY_BARRIER;
+    KernelMemory.PageCount = 512*32;
     
     KernelTask = (Task*)&TaskManager[0];
 
     KernelTask->ProcessID = 0;
     KernelTask->MemoryData = KernelMemory;
     KernelTask->RequestedSleepCycle = 0;
+    KernelTask->ProcessState = 0x02;
+    KernelTask->MaxTicks = 5;
     KernelTask->Exists = true;
+    
+    VirtualMemorySize = PT_Count * PD_Count * PDPT_Count;
+    mem_init = true;
 
-    uint64_t mem = Create_User_Memory();
-
-    mem_set_cr3(mem);
+    // enumerate e820 then map all of physical memory into kernel space.
+    Enumerate_E820(false);
 
     asm volatile(
         "movq %%cr3, %%rax\n"
@@ -142,7 +140,72 @@ void InitMem(){
         : : "%rax"
     );
 
-    asm("sti");
+    phys_frames = (struct Physical_Frame*)(KernelTask->MemoryData.BaseVirtualAddress + ((KernelTask->MemoryData.PageCount) * 4096));
+
+    uint64_t safe_total_mem = (total_mem & ~(0xFFFULL)) - 0x1000;
+
+    uint64_t temp_phys = KernelTask->MemoryData.PageCount;
+    
+    uint64_t phys_frames_pages = ((total_mem / 0x1000) * sizeof(struct Physical_Frame) + 0xFFF) / 0x1000;
+    KernelTask->MemoryData.PageCount += phys_frames_pages;
+
+    for(uint64_t i = 0; i < (KernelTask->MemoryData.PageCount)+1; i++){
+        phys_frames[i].flags = 0b101;
+    }
+
+
+    // Enumerate_E820 sets 2 variables:
+    // total_mem: the total amount of memory in the system.
+    // available_mem: the total amount of non dirty memory in the system.
+    // to calculate dirty memory, just do total_mem-available_mem.
+
+    // since we need phys_frames to have enough memory for each physical frame, we use this math to increase page count and set those bits.
+
+    Enumerate_E820(true);
+
+    char percent_buffer[7];
+    memset(percent_buffer, ' ', 6);
+    percent_buffer[0] = '%';
+
+    char count_buffer[23];
+
+    uint64_t mem = Create_User_Memory();
+
+    mem_set_cr3(mem, false);
+
+    asm volatile(
+        "movq %%cr3, %%rax\n"
+        "movq %%rax, %0\n"
+        : "=r" (Kernel_PML4_Physical)
+        : : "%rax"
+    );
+
+    KernelTask->Base_PML4 = mem;
+    PML4_Physical = mem;
+
+    PageDetails page;
+
+    for(uint64_t phys = (512*64)*0x1000; phys < total_mem; phys+=0x1000){
+        memset(&page, 0, sizeof(PageDetails));
+        page.physical_address = phys;
+        page.virtual_address = phys+0xffff800000000000ULL;
+        page.flags.flags = KERNEL_FLAGS;
+        page.flags.Execute_Disable = false;
+
+        if((phys_frames[phys/0x1000].flags & 0b10) != 0b10){
+            alloc_page(&page);
+        }
+
+        #ifdef MEM_SANITY
+            //WriteString("      ", 70, 3);
+            int_to_char_array((phys*100)/(total_mem-0x1000), percent_buffer+1, 7, 0);
+            WriteString(percent_buffer, 70, 3);
+            int_to_char_array_hex(phys, count_buffer, 23, 10);
+            WriteString(count_buffer, 66, 4);
+        #endif
+    }
+
+    FlushTLB();
 }
 
 // Convert a virtual address into a PageEntries struct
@@ -173,14 +236,19 @@ uint64_t CalculatePageAddress(PageEntries* entries){
     return canonical_address;
 }
 
-/**
- * @brief Flushes the entire TLB, used when modifying high level entries.
- */
-void FlushTLB(){
-    asm volatile(
-        "movq %cr3, %rax\n"
-        "movq %rax, %cr3\n"
-    );
+bool IsCanonical(uint64_t addr) {
+    // Shift right by 47 bits. 
+    // If it's a "low" address, the result should be 0.
+    // If it's a "high" address, the result should be 0x1FFFF (all 1s).
+    // But since we want bits 48-63 to match bit 47:
+    int64_t signed_addr = (int64_t)addr;
+    uint64_t extension = (uint64_t)(signed_addr >> 47);
+    
+    // If the extension is all 0s (0) or all 1s (0xFFFFFFFFFFFFFFFF or similar), it's good.
+    // Actually, a simpler way:
+    return ((addr >> 47) == 0) || ((addr >> 47) == 0x1FFFFFFFFULL); 
+    // Wait, the easiest way is just checking the sign extension:
+    return ((int64_t)(addr << 16) >> 16) == (int64_t)addr;
 }
 
 /**
@@ -189,16 +257,19 @@ void FlushTLB(){
  * @param flags The flags for the new entry.
  * @param flush Whether or not a full TLB flush should occur if a new entry is made.
  */
-void EnsureEntry(uint64_t* e_addr, uint8_t flags, bool flush){
-    uint64_t fix = (*e_addr) & 0xFFFFFFFFFFFF000ULL;
-    if(fix == 0){
-        void* new = malloc(KernelTask);
-        
-        memset(new, 0, 0x1000);
+void EnsureEntry(volatile uint64_t* e_addr, uint8_t flags, bool flush){
+    uint64_t fix = (*e_addr) & 0x000FFFFFFFFFF000ULL;
+    if(!(*e_addr & 1ULL) || !IsCanonical(fix)){
+        uint64_t new = FindNextFreePhysical();
+        uint64_t virt = new+VIRTUAL_MEMORY_BARRIER;
+        phys_frames[new/0x1000].flags = 0b101;
+
+        memset((void*)virt, 0, 0x1000);
 
         *e_addr = (uint64_t)(
-            phys_addr(new) |
-            flags
+            new |
+            flags |
+            1ULL
         );
         if(flush){
             FlushTLB();
@@ -214,25 +285,28 @@ uint64_t* CalculatePagePhysicalEntryAddress(PageEntries* entries){
     if(entries->PML4_Entry < 256){
         flags = USER_FLAGS;
     }
-    uint64_t* PML4_Pointer = (uint64_t*)((PML4_Physical + (entries->PML4_Entry * 8)) + 0xffff800000000000ULL);
+    
+    volatile uint64_t* PML4_Pointer = (uint64_t*)((PML4_Physical + (entries->PML4_Entry * 8)) + 0xffff800000000000ULL);
     
     EnsureEntry(PML4_Pointer, flags, true);
 
-    uint64_t* PDPT_Pointer = (uint64_t*)(((*PML4_Pointer & 0xFFFFFFFFF000ULL) + (entries->PDPT_Entry * 8)) + 0xffff800000000000ULL);
+    volatile uint64_t* PDPT_Pointer = (uint64_t*)(((*PML4_Pointer & 0x000FFFFFFFFFF000ULL) + (entries->PDPT_Entry * 8)) + 0xffff800000000000ULL);
 
     EnsureEntry(PDPT_Pointer, flags, true);
 
-    uint64_t* PD_Pointer = (uint64_t*)(((*PDPT_Pointer & 0xFFFFFFFFF000ULL) + (entries->PD_Entry * 8)) + 0xffff800000000000ULL);
+    volatile uint64_t* PD_Pointer = (uint64_t*)(((*PDPT_Pointer & 0x000FFFFFFFFFF000ULL) + (entries->PD_Entry * 8)) + 0xffff800000000000ULL);
 
     EnsureEntry(PD_Pointer, flags, true);
 
-    uint64_t* PT_Pointer = (uint64_t*)(((*PD_Pointer & 0xFFFFFFFFF000ULL) + (entries->PT_Entry * 8)) + 0xffff800000000000ULL);
+    volatile uint64_t* PT_Pointer = (uint64_t*)(((*PD_Pointer & 0x000FFFFFFFFFF000ULL) + (entries->PT_Entry * 8)) + 0xffff800000000000ULL);
 
     return PT_Pointer;
 }
 
 // Allocates a single page, includes protection against memory leaks
 void* alloc_page(PageDetails* page){
+    uint64_t vaddr = page->virtual_address;
+
     PageEntries Deconstructed = ExtractPageEntries(page->virtual_address);
     uint16_t PDPT_Entry = Deconstructed.PDPT_Entry;
     uint16_t PD_Entry = Deconstructed.PD_Entry;
@@ -244,37 +318,111 @@ void* alloc_page(PageDetails* page){
     uint16_t PD_EntryP = DeconstructedP.PD_Entry;
     uint16_t PageP = DeconstructedP.PT_Entry;
 
-    uint8_t page_bit = mem_GetBit(PML4_EntryP, PDPT_EntryP, PD_EntryP, PageP); // makes sure the page is actually available
-    
-    if(page_bit == 0){
-        // this must be here, otherwise CalculatePagePhysicalEntryAddress will allocated to the target page, otherwise we have to set a custom physical address which destroys mmio
-        mem_SetBit(DeconstructedP.PML4_Entry, DeconstructedP.PDPT_Entry, DeconstructedP.PD_Entry, DeconstructedP.PT_Entry);
-
-        // the physical address of the page entry we want to set
-        uint64_t* Page_Entry = CalculatePagePhysicalEntryAddress(&Deconstructed);
-
-        if(Page_Entry == NULL){ printf("No page entry\n"); return NULL; }
-
-        uint64_t new_entry = 
-            (page->physical_address) |
-            (page->flags.flags) |
-            (((uint64_t)page->flags.Execute_Disable) << 63);
-
-        *Page_Entry = new_entry;
-
-        // must flush the TLB with invlpg, otherwise CPU wont know the page was updated
-
-        asm volatile("invlpg (%0)" :: "r"((uintptr_t)(page->virtual_address)) : "memory");
-    }else{
-        print("Page unavailable\n", 0);
-        return (void*)(page->virtual_address);
+    if(page->physical_address >= total_mem){
+        printf("OH MY GOD STOP FUCK NO STOP\n");
+        asm volatile(
+            "cli\n"
+            "hlt\n"
+        );
     }
 
+    if((phys_frames[page->physical_address/0x1000].flags & 0b10) == 0b10){ 
+        return NULL;
+    }
+
+    if((phys_frames[page->physical_address/0x1000].flags & 0b100) == 0b100 && page->virtual_address < VIRTUAL_MEMORY_BARRIER){
+        return NULL;
+    }
+
+    uint64_t phys = page->physical_address;
+
+    uint8_t page_bit = mem_GetBit(phys); // makes sure the page is actually available
+    
+    struct Physical_Frame* phys_frame = &phys_frames[page->physical_address/0x1000];
+
+    if(phys_frame->refcount == 0 && page->virtual_address < VIRTUAL_MEMORY_BARRIER){
+        phys_frame->flags = 0b1;
+    }
+    if(page->virtual_address < VIRTUAL_MEMORY_BARRIER){
+        phys_frame->refcount++;
+        if(phys_frame->flags & 0b100){
+            printf("AHHHHH\n");
+        }
+    }
+
+    // the physical address of the page entry we want to set
+    uint64_t* Page_Entry = CalculatePagePhysicalEntryAddress(&Deconstructed);
+
+    if(Page_Entry == NULL){ printf("No page entry\n"); return NULL; }
+
+    uint64_t new_entry = 
+        (page->physical_address) |
+        (page->flags.flags) |
+        (((uint64_t)page->flags.Execute_Disable) << 63);
+
+    *Page_Entry = new_entry;
+
+    // must flush the TLB with invlpg, otherwise CPU wont know the page was updated
+    asm volatile("invlpg (%0)" : : "r" (page->virtual_address) : "memory");
     return (void*)(page->virtual_address);
+}; 
+
+void* alloc_page_no_invlpg(PageDetails* page){
+    uint64_t vaddr = page->virtual_address;
+
+    PageEntries Deconstructed = ExtractPageEntries(page->virtual_address);
+    uint16_t PDPT_Entry = Deconstructed.PDPT_Entry;
+    uint16_t PD_Entry = Deconstructed.PD_Entry;
+    uint16_t Page = Deconstructed.PT_Entry;
+
+    PageEntries DeconstructedP = ExtractPageEntries(page->physical_address);
+    uint16_t PML4_EntryP = DeconstructedP.PML4_Entry;
+    uint16_t PDPT_EntryP = DeconstructedP.PDPT_Entry;
+    uint16_t PD_EntryP = DeconstructedP.PD_Entry;
+    uint16_t PageP = DeconstructedP.PT_Entry;
+
+    if(page->physical_address >= total_mem){
+        printf("OH MY GOD STOP FUCK NO STOP\n");
+        asm volatile(
+            "cli\n"
+            "hlt\n"
+        );
+    }
+
+    if((phys_frames[page->physical_address/0x1000].flags & 0b10) == 0b10){ 
+        return NULL;
+    }
+
+    uint8_t page_bit = mem_GetBit(page->physical_address); // makes sure the page is actually available
+    
+    struct Physical_Frame* phys_frame = &phys_frames[page->physical_address/4096];
+
+    if(phys_frame->refcount == 0 && page->virtual_address < VIRTUAL_MEMORY_BARRIER){
+        mem_SetBit(page->physical_address);
+    }
+    if(page->virtual_address < VIRTUAL_MEMORY_BARRIER){
+        phys_frame->refcount++;
+    }
+
+     // the physical address of the page entry we want to set
+    uint64_t* Page_Entry = CalculatePagePhysicalEntryAddress(&Deconstructed);
+
+    if(Page_Entry == NULL){ printf("No page entry\n"); return NULL; }
+
+    uint64_t new_entry = 
+        (page->physical_address) |
+        (page->flags.flags) |
+        (((uint64_t)page->flags.Execute_Disable) << 63);
+
+    *Page_Entry = new_entry;
+
+    return (void*)(vaddr);
 }; 
 
 // Gets rid of a single page, includes protection against memory leaks
 void* free_page(PageDetails* page){
+    uint64_t vaddr = page->virtual_address;
+
     PageEntries Deconstructed = ExtractPageEntries(page->virtual_address);
     uint16_t PDPT_Entry = Deconstructed.PDPT_Entry;
     uint16_t PD_Entry = Deconstructed.PD_Entry;
@@ -291,78 +439,64 @@ void* free_page(PageDetails* page){
     uint16_t PD_EntryP = DeconstructedP.PD_Entry;
     uint16_t PageP = DeconstructedP.PT_Entry;
 
-    uint8_t page_bit = mem_GetBit(PML4_EntryP, PDPT_EntryP, PD_EntryP, PageP); // makes sure the page is actually available
-    if(page_bit == 1){
-        // the physical address of the page entry we want to set
-        uint64_t* Page_Entry = CalculatePagePhysicalEntryAddress(&Deconstructed);
-        if(!Page_Entry){ return NULL; }
-        
-        uint64_t new_entry = (uint64_t)0x0000;
+    struct Physical_Frame* phys_frame = &phys_frames[page->physical_address/4096];
 
-        *Page_Entry = new_entry;
-
-        // must flush the TLB with invlpg, otherwise CPU wont know the page was updated
-        asm volatile("invlpg (%0)" :: "r"(page->virtual_address) : "memory");
+    uint8_t page_bit = mem_GetBit(page->physical_address); // makes sure the page is actually available
+    if(phys_frame->refcount == 1){
+        mem_ClearBit(page->physical_address);
     }
+    phys_frame->refcount--;
+
+    // the physical address of the page entry we want to set
+    uint64_t* Page_Entry = CalculatePagePhysicalEntryAddress(&Deconstructed);
+    if(!Page_Entry){ return NULL; }
+        
+    uint64_t new_entry = (uint64_t)0x0000;
+
+    *Page_Entry = new_entry;
+
+    // must flush the TLB with invlpg, otherwise CPU wont know the page was updated
+    asm volatile("invlpg %0" : : "m" (*(char *)vaddr) : "memory");
     
     PageEntries physicalData = ExtractPageEntries(page->physical_address);
 
-    mem_ClearBit(physicalData.PML4_Entry, physicalData.PDPT_Entry, physicalData.PD_Entry, physicalData.PT_Entry);
-
-    return (void*)(page->virtual_address);
+    return (void*)(vaddr);
 }; 
 
-PageEntries FindNextFreePhysical(){
-    PageEntries ret;
-    for(int PML4_Entry = 0; PML4_Entry < 512; PML4_Entry++){
-        for(int PDPT_Entry = 0; PDPT_Entry < 512; PDPT_Entry++){
-            for(int PD_Entry = 0; PD_Entry < 512; PD_Entry++){
-                for(int PT_Entry = 0; PT_Entry < 512; PT_Entry++){
-                    uint16_t bit = mem_GetBit(PML4_Entry, PDPT_Entry, PD_Entry, PT_Entry);
-                   if(bit == 0){
-                        ret.PML4_Entry = PML4_Entry;
-                        ret.PDPT_Entry = PDPT_Entry;
-                        ret.PD_Entry = PD_Entry;
-                        ret.PT_Entry = PT_Entry;
-                        ret.Page_Offset = 0;
-
-                        return ret;
-                    }
-                }
-            }
+uint64_t FindNextFreePhysical(){
+    uint64_t phys = 0;
+    for(phys = 0; phys < total_mem; phys+=0x1000){
+        if(mem_GetBit(phys) == 0){
+            return phys;
         }
     }
-    
-    ret.PML4_Entry = 512;
-    ret.PDPT_Entry = 512;
-    ret.PD_Entry = 512;
-    ret.PT_Entry = 512;
-    ret.Page_Offset = 0;
-    return ret;
+    return 0;
 }
 
 // Allocates one page based on a task
 void* malloc(Task* TaskDetails){
     uint64_t VirtualBase = TaskDetails->MemoryData.BaseVirtualAddress;
-    uint64_t VirtualTop = VirtualBase + (TaskDetails->MemoryData.PageCount * 4096);
+    uint64_t VirtualTop = VirtualBase + (TaskDetails->MemoryData.PageCount * 0x1000);
+    uint64_t NextPageAddress = VirtualTop+0x1000;
 
-    uint64_t NextPageAddress = VirtualTop+4096;
-    PageDetails NextPage;
-    if (TaskDetails->ProcessID == 0){
-        NextPage.flags.flags = KERNEL_FLAGS;
-    }else{
-        NextPage.flags.flags = USER_FLAGS;
+    PageDetails page;
+    uint64_t free = FindNextFreePhysical();
+
+    page.physical_address = free;
+    page.virtual_address = NextPageAddress;
+    page.flags.flags = KERNEL_FLAGS;
+    page.flags.Execute_Disable = true;
+
+    TaskDetails->MemoryData.PageCount += 1; 
+    phys_frames[page.physical_address / 0x1000].flags = 0b101;
+
+    void* allocated = alloc_page(&page);
+    phys_frames[free / 0x1000].flags = 0b101;
+
+    if(allocated == NULL) { 
+        TaskDetails->MemoryData.PageCount -= 1; 
+        phys_frames[page.physical_address / 0x1000].flags = 0;
     }
-    NextPage.flags.Execute_Disable = false;
-    PageEntries nextFree = FindNextFreePhysical();
-    if(nextFree.PML4_Entry == 0xFF){ return NULL; }
-    NextPage.physical_address = CalculatePageAddress(&nextFree);
-    
-    NextPage.virtual_address = NextPageAddress;
-
-    void* allocated = alloc_page(&NextPage);
-
-    if(allocated != NULL) { TaskDetails->MemoryData.PageCount += 1; }
 
     return allocated;
 }
@@ -431,7 +565,7 @@ PageDetails ParsePTE(uint64_t* PTE){
     
     if(PTE == NULL){ return ret; }
 
-    uint64_t PhysicalAddress = (*PTE & 0xFFFFFFFFF000ULL);
+    uint64_t PhysicalAddress = (*PTE & 0x000FFFFFFFFFF000ULL);
     uint16_t flags = *PTE & 0x1FF;
     bool XD = *PTE >> 63;
     uint64_t VirtualAddress = (uintptr_t)(PTE);
@@ -446,15 +580,7 @@ PageDetails ParsePTE(uint64_t* PTE){
 }
 
 void mem_bitmap_dump(uint16_t PT){
-    cls();
-    char cur;
-    for(int y = 0; y < 16; y++){
-        for(int x = 0; x < 32; x++){
-            if(mem_GetBit(0, 0, PT, x+(y*32)) == 0){ cur = '0'; } else {cur = '1'; }
-            WriteCharacter(cur, x, y);
-            setCursor(0, 16);
-        }
-    }
+    
 }
 
 void memset(void* dest, uint8_t value, size_t bytes){
@@ -500,7 +626,7 @@ void E820_Dump_Descriptor(E820_Range_Descriptor* descriptor){
     int_to_char_array_hex(abs(descriptor->Base_Address), test_char, sizeof(test_char), 10);
     print_debug(test_char, 0);
     print_debug("->", 0);
-    int_to_char_array_hex(abs(descriptor->Length), test_char, sizeof(test_char), 10);
+    int_to_char_array_hex(abs(descriptor->Length+descriptor->Base_Address), test_char, sizeof(test_char), 10);
     print_debug(test_char, 0);
     print_debug(" (", 0);
     int_to_char_array(abs(descriptor->Type), test_char, sizeof(test_char), 0);
@@ -514,26 +640,31 @@ void E820_Dump_Descriptor(E820_Range_Descriptor* descriptor){
     }
 }
 
-void Enumerate_E820(){
+void Enumerate_E820(bool do_dirty){
     uintptr_t e820_ptr = (uintptr_t)E820_BUFFER_ADDRESS;
     E820_Range_Descriptor* cur_descriptor = (E820_Range_Descriptor*)e820_ptr;
 
     uintptr_t loop_count_ptr = (uintptr_t)(E820_BUFFER_ADDRESS-24);
     uint32_t loop_count = (*(uint32_t*)loop_count_ptr) / 24;
 
-    #ifdef DEBUG
-        char test_char[36];
-        int_to_char_array(loop_count, test_char, sizeof(test_char), 0);
-        print("\n", 0);
-        print(test_char, 0);
-        print(" memory regions detected\n", 0);
-        print_debug("BASE          LIMIT        TYPE  SIZE\n",0);
+    #ifdef MEM_SANITY
+        if(do_dirty){
+            char test_char[36];
+            int_to_char_array(loop_count, test_char, sizeof(test_char), 0);
+            print("\n", 0);
+            print(test_char, 0);
+            print(" memory regions detected\n", 0);
+            print_debug("BASE          END          TYPE  SIZE\n",0);
+        }  
     #endif
 
     for(int i = 0; i < loop_count-1; i++){
-        #ifdef DEBUG
-            E820_Dump_Descriptor(cur_descriptor);
+        #ifdef MEM_SANITY
+            if(do_dirty){
+                E820_Dump_Descriptor(cur_descriptor);
+            }
         #endif
+        total_mem+=cur_descriptor->Length;
         if(cur_descriptor->Type == 1){
             available_mem+=cur_descriptor->Length;
         }else{
@@ -542,25 +673,27 @@ void Enumerate_E820(){
             // but keep them unmapped.
             uint64_t cur_base = cur_descriptor->Base_Address;
             for(int i = 0; i < cur_descriptor->Length; i+=0x1000){
-                PageEntries entries = ExtractPageEntries(cur_base);
-                mem_SetBit(entries.PML4_Entry, entries.PDPT_Entry, entries.PD_Entry, entries.PT_Entry);
                 cur_base+=0x1000;
+                if(do_dirty){
+                    mem_SetBit(cur_base);
+                    phys_frames[cur_base/0x1000].flags &= 0b11;
+                }
             }
-            
         }
-        total_mem+=cur_descriptor->Length;
 
         cur_descriptor++;
     }
-    #ifdef DEBUG
-        SetTextColor(LCYAN, BLACK);
-        print_debug("Available memory: ", 0);
-        PrintMemorySize(available_mem);
-        print_debug("\nUnavailable memory: ", 0);
-        PrintMemorySize(total_mem-available_mem);
-        print_debug("\nTotal Memory: ", 0);
-        PrintMemorySize(total_mem);
-        print("\n", 0);
+    #ifdef MEM_SANITY
+        if(do_dirty){
+            SetTextColor(LCYAN, BLACK);
+            print_debug("Available memory: ", 0);
+            PrintMemorySize(available_mem);
+            print_debug("\nUnavailable memory: ", 0);
+            PrintMemorySize(total_mem-available_mem);
+            print_debug("\nTotal Memory: ", 0);
+            PrintMemorySize(total_mem);
+            print("\n", 0);
+        }
     #endif
 }
 
@@ -576,5 +709,5 @@ uint64_t phys_addr(void* pointer){
 
     uint64_t* info = CalculatePagePhysicalEntryAddress(&entries);
 
-    return (*info & 0xFFFFFFFFFFFFF000) | offset;
+    return (*info & 0x000FFFFFFFFFF000ULL) | offset;
 }

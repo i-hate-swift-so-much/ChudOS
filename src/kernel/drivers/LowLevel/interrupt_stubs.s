@@ -35,6 +35,7 @@
         pushq %r13
         pushq %r14
         pushq %r15
+        cld
 .endm
 
 .macro pop_regs
@@ -100,14 +101,13 @@
         3:
 .endm
 
-.macro check_cpl_ret
-        
-.endm
 
 isr80_stub:
         check_cpl
 
         push_regs
+
+        sti
 
         movq %cr2, %rax
         push %rax
@@ -121,9 +121,7 @@ isr80_stub:
         add $16, %rsp
 
         pop_regs
-
-        check_cpl_ret
-
+        
         iretq
 
 kernel_panic_stub:
@@ -145,7 +143,7 @@ kernel_panic_stub:
 
         pop_regs // pop general registers
 
-        check_cpl_ret // properly restore stack, ignore dummy values if pushed
+         // properly restore stack, ignore dummy values if pushed
 
         add $8, %rsp // skip error code
 
@@ -170,7 +168,7 @@ invalid_opcode_stub:
 
         pop_regs
 
-        check_cpl_ret
+        
 
         iretq
 
@@ -195,7 +193,7 @@ gpf_stub:
 
         pop_regs
 
-        check_cpl_ret
+        
 
         addq $8, %rsp // skip the error code
 
@@ -224,8 +222,6 @@ page_fault_stub:
 
         pop_regs
 
-        check_cpl_ret
-
         addq $8, %rsp // skip the error code
 
         sti
@@ -233,25 +229,21 @@ page_fault_stub:
         iretq
 
 timer_interrupt_stub:
-        cld
-        
-        check_cpl // adds stack padding for user values
+        check_cpl
 
-        push_regs // push general registers
+        push_regs
 
         movq %cr2, %rax
         pushq %rax
 
-        pushq $0x20
+        pushq $0x00
 
         movq %rsp, %rdi
         callq TimerInterrupt
 
-        add $16, %rsp // skip the previous two pushes
+        add $16, %rsp
 
-        pop_regs // pop general registers
-
-        //check_cpl_ret // deletes stack padding for iretq
+        pop_regs
 
         iretq
 
@@ -272,13 +264,11 @@ sync_time_stub:
 
         pop_regs
 
-        check_cpl_ret
+        
 
         iretq
 
 keyboard_stub:
-        cld
-
         check_cpl
 
         push_regs
@@ -287,15 +277,13 @@ keyboard_stub:
         pushq %rax
 
         pushq $0x01
-        
+
         movq %rsp, %rdi
         callq HandleKeyboardInterrupt
 
         add $16, %rsp
 
         pop_regs
-
-        check_cpl_ret
 
         iretq
 
@@ -318,7 +306,7 @@ ahci_interrupt_stub:
 
         pop_regs
 
-        check_cpl_ret
+        
 
         iretq
 
@@ -332,7 +320,7 @@ floppy_drive_stub:
         movq %cr2, %rax
         pushq %rax
 
-        pushq $0x00
+        pushq $0x06
         
         movq %rsp, %rdi
         callq FLOPPY_IRQ
@@ -341,7 +329,7 @@ floppy_drive_stub:
 
         pop_regs
 
-        check_cpl_ret
+        
 
         iretq
 

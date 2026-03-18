@@ -68,9 +68,9 @@ void AHCI_Setup_Port(uint8_t index){
         malloc_specific(KernelTask, (uint64_t)curPort, &flags);
     }
 
-    PageEntries nextFree = FindNextFreePhysical();
+    uint64_t nextFree = FindNextFreePhysical();
 
-    curPort->Command_List_BAR = (uint64_t)malloc_specific(KernelTask, CalculatePageAddress(&nextFree), &flags);
+    curPort->Command_List_BAR = (uint64_t)malloc_specific(KernelTask, nextFree, &flags);
 }
 
 /*

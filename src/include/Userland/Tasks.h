@@ -2,18 +2,21 @@
 #include "LowLevel/Memory.h"
 #include "Libraries/Math.h"
 #include "Libraries/std.h"
+#include "filesys/gemfs.h"
 
 // Defines how many cycles each level of priority can use
 #define SUDO_PRIORITY 40
 #define USER_PRIORITY 20
 #define LOW_PRIORITY 10
+#define DAEMON_PRIORITY 5
 
 // Defines the type of states a process can be in
 // used when setting Task.ProcessState
 #define NULL_PROCESS_STATE 0x00 // this is used because when the list of processes is enabled, all entries are just zeros. If this was anything else the scheduler would read it as valid even though it isn't initialized
-#define READY_PROCESS_STATE 0x01 // process is ready to be ran by the cpu
-#define WAITING_PROCESS_STATE 0x02 // process is waiting in one of the waiting queues
-#define KILL_PROCESS_STATE 0x03
+#define CREATION_PROCESS_STATE 0x01 // process is still being created and should not be ran.
+#define READY_PROCESS_STATE 0x02 // process is ready to be ran by the cpu
+#define WAITING_PROCESS_STATE 0x03 // process is waiting in one of the waiting queues
+#define KILL_PROCESS_STATE 0x04 // the process should be terminated
 
 // values for e_type
 #define ET_NONE 0x00
@@ -42,7 +45,7 @@ struct elf_identifiers{
     uint8_t EI_OSABI;
     // 8 bytes of padding
     uint8_t pad[8];
-}__attribute__((packed));
+};
 
 struct ElfHeader64_s{
     struct elf_identifiers e_ident;
@@ -59,7 +62,7 @@ struct ElfHeader64_s{
     uint16_t e_shentsize; // size of a section header entry, 0x40 for 64 bit programs
     uint16_t e_shnum; // number of entries in the section header table
     uint16_t e_shstrndx; // index of the section header table that contains the section names
-}__attribute__((packed));
+};
 
 typedef struct ElfHeader64_s ElfHeader64;
 
@@ -72,9 +75,11 @@ struct ProgramHeader64_s{
     uint64_t p_filesz; // size of the segment in the file 
     uint64_t p_memsz; // size of the segment in memory
     uint64_t p_align;
-}__attribute__((packed));
+};
 
 typedef struct ProgramHeader64_s ProgramHeader64;
+
+int RegisterTask(uint64_t base_vaddr, uint64_t entry_point, uint64_t page_count, uint8_t maxticks, uint64_t stack_start, uint64_t pml4);
 
 /**
     * @brief Loads a program into memory and registers it.
@@ -86,4 +91,6 @@ void* LoadElf(uint8_t Drive, uint64_t LBA, size_t Program_Size);
 
 int TASKMGR_get_current();
 void TASKMGR_set_current(int pid);
+int FindFreeFileDescriptor(int PID);
 void KillTask(int PID);
+void LoadElf_GemFS(enum GemFS_DriveIDs DriveID, uint8_t Partition, uint64_t Blocks, uint64_t Index);

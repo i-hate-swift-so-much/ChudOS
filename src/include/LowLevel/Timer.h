@@ -15,13 +15,13 @@ typedef struct{
     uint16_t day;
 } DateData;
 
-extern uint64_t SecondsSinceBoot;
-extern uint64_t TimerWindow;
-extern uint16_t Frequency;
-extern bool tasks_enabled;
+extern volatile uint64_t SecondsSinceBoot;
+extern volatile uint64_t TimerWindow;
+extern volatile uint16_t Frequency;
 
 void timer_interrupt_stub();
 void sync_time_stub();
+void task_switch_frame(InterruptRegisters* dest, InterruptRegisters* src);
 void TimerInterrupt(InterruptRegisters* frame);
 void SyncTime(InterruptRegisters* frame);
 void SetTimerFrequency(uint16_t hz);
@@ -29,3 +29,4 @@ void PrintCycles();
 void PrintSecondsSinceBoot();
 void context_switch(InterruptRegisters* regs);
 void ForceSwitch(InterruptRegisters* regs);
+void EnableTasks();

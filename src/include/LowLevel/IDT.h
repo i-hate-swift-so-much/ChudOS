@@ -2,7 +2,7 @@
 
 #include <stdint.h>
 
-struct InterruptRegisters_s{
+volatile struct InterruptRegisters_s{
     uint64_t int_no;
 
     uint64_t cr2;
@@ -34,7 +34,7 @@ struct InterruptRegisters_s{
 
 typedef struct InterruptRegisters_s InterruptRegisters;
 
-struct InterruptRegistersError_s{
+volatile struct InterruptRegistersError_s{
     uint64_t int_no;
     
     uint64_t cr2;
@@ -67,7 +67,7 @@ struct InterruptRegistersError_s{
 
 typedef struct InterruptRegistersError_s InterruptRegistersError;
 
-struct interrupt_frame_s {
+volatile struct interrupt_frame_s {
     uint64_t rip;
     uint64_t cs;
     uint64_t rflags;
@@ -77,7 +77,7 @@ struct interrupt_frame_s {
 
 typedef struct interrupt_frame_s interrupt_frame;
 
-struct IDTEntry_S{
+volatile struct IDTEntry_S{
     uint16_t offset_low;    // Lower 16 bits of the handler's address
     uint16_t selector;      // Code segment selector
     uint8_t  ist;     // first 3 bits are the IST offset, rest MUST be zero
@@ -87,7 +87,7 @@ struct IDTEntry_S{
     uint32_t zero; // must be zero
 }__attribute__((packed));
 
-struct IDTR_S{
+volatile struct IDTR_S{
     uint16_t limit; // Size of IDT - 1
     uint64_t base;  // Base address of the IDT
 }__attribute__((packed));

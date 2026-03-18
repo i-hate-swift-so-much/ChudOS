@@ -11,6 +11,7 @@ build_count_file="build.txt"
 build_type=1
 
 args=""
+qemu_args=""
 
 has_all=0
 debug_flag_set=0
@@ -25,6 +26,8 @@ only_run=0
 gemfs_sanity_check=0
 test_user=0
 elf_sanity_check=0
+mem_sanity=0
+use_gdb=0
 
 if [[ ! -f "$build_count_file" ]]; then
     echo 0 > "$build_count_file"
@@ -76,6 +79,12 @@ for arg in "$@"; do
     elif [[ "$arg" == "elf_sanity" || "$arg" == "-elf-sc" && $elf_sanity_check == 0 ]]; then
         args+=" elf_sanity"
         elf_sanity_check=1
+    elif [[ "$arg" == "mem_sanity" || "$arg" == "-m-sc" && $mem_sanity == 0 ]]; then
+        args+=" mem_sanity"
+        mem_sanity=1
+    elif [[ "$arg" == "gdb" || "$arg" == "-g" && $use_gdb == 0 ]]; then
+        qemu_args+=" -s -S"
+        use_gdb=1
     fi
 done
 
@@ -97,7 +106,8 @@ if [[ $run_with_qemu_legacy_drivers == 1 ]]; then
         -no-reboot -no-shutdown -d int,in_asm -D qemu.log -monitor stdio \
         -device VGA,vgamem_mb=3 \
         -machine pc \
-        -m 2G 
+        -m 1G \
+        $qemu_args
     stty echo
     exit 0
 fi
@@ -105,10 +115,11 @@ fi
 if [[ $run_with_qemu == 1 ]]; then
     qemu-system-x86_64 -drive format=raw,file=bin/ChudOS.img,id=disk,if=none -device ahci,id=ahci -device ide-hd,drive=disk,bus=ahci.0 \
         -boot c,strict=on \
-        -no-reboot -no-shutdown -d int,in_asm -D qemu.log -monitor stdio \
+        -no-reboot -no-shutdown -d int -D qemu.log -monitor stdio \
         -device VGA,vgamem_mb=3 \
         -machine q35 \
         -m 2G
+        $qemu_args
     stty echo
     exit 0
 fi

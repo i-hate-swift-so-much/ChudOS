@@ -5,13 +5,13 @@ ENTRY(_start)
 SECTIONS
 {
     . = 0xffff800000100000;
-    .text : { 
+    .text : ALIGN(4096) { 
         *kernel_entry.o(.text)
         *(.text*) 
     }
-    .rodata : { *(.rodata*) }
-    .data : { *(.data*) }
-    .bss : { *(COMMON) *(.bss*) }
+    .rodata : ALIGN(4096) { *(.rodata*) }
+    .data : ALIGN(4096) { *(.data*) }
+    .bss : ALIGN(4096) { *(COMMON) *(.bss*) }
 
 
     /DISCARD/ : 

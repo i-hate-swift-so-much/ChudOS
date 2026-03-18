@@ -65,6 +65,7 @@ void pic_mask(uint8_t irq){
     }
     value=inb(port) | (1 << irq);
     outb(port, value);
+    asm volatile("" ::: "memory");
 }
 
 void pic_unmask(uint8_t irq){
@@ -82,4 +83,5 @@ void pic_unmask(uint8_t irq){
     }
     value=inb(port) & ~(1 << irq);
     outb(port, value);
+    asm volatile("" ::: "memory");
 }

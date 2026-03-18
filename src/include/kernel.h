@@ -21,6 +21,26 @@
 #include "stdbool.h"
 #include "stdint.h"
 
+#ifndef VERSION_MAJOR
+    #define VERSION_MAJOR 0
+#endif
+
+#ifndef VERSION_MINOR
+    #define VERSION_MINOR 0
+#endif
+
+#ifndef VERSION_PATCH
+    #define VERSION_PATCH 0
+#endif
+
+#ifndef BUILD
+    #define BUILD 0
+#endif
+
+#ifndef BUILD_CLASS
+    #define BUILD_CLASS 0
+#endif
+
 struct KERNEL_Boot_Status{
     char Sequence_Name[64];
     char Fail_Message[64];

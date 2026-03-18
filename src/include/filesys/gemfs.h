@@ -52,6 +52,8 @@ struct GemFS_DriveData{
     bool Is_GemFS[4];
 };
 
+extern struct GemFS_DriveData Drives[16];
+
 uint64_t GemFS_BlockToLBA(enum GemFS_DriveIDs DriveID, uint8_t Partition, uint64_t Block);
 void GemFS_GetFBB(enum GemFS_DriveIDs DriveID, uint8_t Partition);
 bool GemFS_FBB_GetBlock(enum GemFS_DriveIDs DriveID, uint8_t Partition, uint64_t Block);
@@ -63,6 +65,7 @@ struct GemFS_Entry GemFS_ReadEntry(enum GemFS_DriveIDs DriveID, uint8_t Partitio
 uint64_t GemFS_GetEntryBlock(enum GemFS_DriveIDs DriveID, uint8_t Partition, uint64_t Index);
 uint64_t GemFS_FindFreeEntry(enum GemFS_DriveIDs DriveID, uint8_t Partition);
 struct GemFS_Main GemFS_ReadMainEntry(enum GemFS_DriveIDs DriveID, uint8_t Partition);
+uint64_t GemFS_FindFreeBlock(enum GemFS_DriveIDs DriveID, uint8_t Partition);
 
 void GemFS_DumpPartition(enum GemFS_DriveIDs DriveID, uint8_t Partition);
 void GemFS_DumpDriveData(enum GemFS_DriveIDs DriveID);
@@ -70,7 +73,11 @@ void GemFS_DumpDriveData(enum GemFS_DriveIDs DriveID);
 void GemFS_FormatPartition(enum GemFS_DriveIDs DriveID, uint8_t Partition);
 void GemFS_LoadPartitionTable(enum GemFS_DriveIDs DriveID);
 
-void GemFS_mkdir(enum GemFS_DriveIDs DriveID, uint8_t Partition, char* name, size_t name_len, uint8_t flags, uint64_t ParentIndex);
+uint64_t GemFS_mkdir(enum GemFS_DriveIDs DriveID, uint8_t Partition, char* name, size_t name_len, uint8_t flags, uint64_t ParentIndex);
+
+uint64_t GemFS_CreateFile(enum GemFS_DriveIDs DriveID, uint8_t Partition, char* name, size_t name_len, uint8_t flags, uint64_t ParentIndex, uint64_t Size);
+void GemFS_WriteFile(void* buffer, size_t buffer_size, enum GemFS_DriveIDs DriveID, uint8_t Partition, uint64_t Index);
+void GemFS_ReadFile(enum GemFS_DriveIDs DriveID, uint8_t Partition, uint64_t index, void* buffer, uint64_t Blocks);
 
 uint64_t GemFS_Find_Index_By_Name(enum GemFS_DriveIDs DriveID, uint8_t Partition, char* name, uint64_t Parent_Index);
 

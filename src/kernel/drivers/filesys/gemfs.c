@@ -1,4 +1,5 @@
 #include "filesys/gemfs.h"
+#include "kernel.h"
 
 struct GemFS_DriveData Drives[16];
 
@@ -50,10 +51,73 @@ void GemFS_FormatPartition(enum GemFS_DriveIDs DriveID, uint8_t Partition){
     }
 
     // create the basic directories
-    GemFS_mkdir(DriveID, Partition, "dev", 4, 0b00010111, 0);
+    /*
+        /
+        |--- dev/
+        |    |--- zero/
+        |    +--- urand/
+        |    +--- shell.elf
+        |--- etc/
+        |    |--- boot_msg.txt
+    */
+    uint64_t dev_entry = GemFS_mkdir(DriveID, Partition, "dev", 4, 0b00010111, 0);
     GemFS_mkdir(DriveID, Partition, "zero", 5, 0b00010111, 1);
     GemFS_mkdir(DriveID, Partition, "urand", 6, 0b00010111, 1);
-    GemFS_mkdir(DriveID, Partition, "etc", 4, 0b00010111, 0);
+    uint64_t etc_entry = GemFS_mkdir(DriveID, Partition, "etc", 4, 0b00010111, 0);
+    uint64_t bin_entry = GemFS_mkdir(DriveID, Partition, "bin", 4, 0b00010111, 0);
+
+    uint8_t shell_buffer[0x2000];
+    memset(shell_buffer, 0, 0x2000);
+    FLOPPY_Read_LBA(DriveID, 1500, (uint64_t)shell_buffer, 16);
+    uint64_t shell_entry = GemFS_CreateFile(DriveID, Partition, "shell.elf", 12, 0b00001111, bin_entry, 9);
+    GemFS_WriteFile(shell_buffer, 0x2000, DriveID, Partition, shell_entry);
+
+    int i = 0;
+    int last_i = 0;
+
+    uint8_t boot_msg_buffer[0x200];
+    memset(boot_msg_buffer, 0, 0x200);
+    char* msg_start = "ChudOS Version ";
+    for(i = 0; i < 0x200; i++){
+        if(msg_start[i] == '\0'){ last_i = i; break; }
+        boot_msg_buffer[i] = msg_start[i];
+    }
+    char msg_num_char[26];
+    int_to_char_array(VERSION_MAJOR, msg_num_char, 26, 0);
+    for(i = 0; i < 0x200; i++){
+        if(msg_num_char[i] == '\0'){ last_i += i; break; }
+        boot_msg_buffer[last_i] = msg_num_char[i];
+    }
+    boot_msg_buffer[last_i] = '.';
+    last_i++;
+    int_to_char_array(VERSION_MINOR, msg_num_char, 26, 0);
+    for(i = 0; i < 0x200; i++){
+        if(msg_num_char[i] == '\0'){ last_i += i; break; }
+        boot_msg_buffer[last_i+i] = msg_num_char[i];
+    }
+    boot_msg_buffer[last_i] = '.';
+    last_i++;
+    int_to_char_array(VERSION_PATCH, msg_num_char, 26, 0);
+    for(i = 0; i < 0x200; i++){
+        if(msg_num_char[i] == '\0'){ last_i += i; break; }
+        boot_msg_buffer[last_i+i] = msg_num_char[i];
+    }
+    boot_msg_buffer[last_i] = ':';
+    last_i++;
+    memset(msg_num_char, 0, 26);
+    int_to_char_array(BUILD, msg_num_char, 26, 0);
+    for(i = 0; i < 0x200; i++){
+        if(msg_num_char[i] == '\0'){ last_i += i; break; }
+        boot_msg_buffer[last_i+i] = msg_num_char[i];
+    }
+    boot_msg_buffer[last_i] = 'u';
+    #if BUILD_CLASS == 0x02
+        boot_msg_buffer[last_i] = 'r';
+    #endif
+    boot_msg_buffer[last_i+1] = '\0';
+    
+    uint64_t boot_msg_entry = GemFS_CreateFile(DriveID, Partition, "boot_msg.txt", 13, 0b00001111, etc_entry, 1);
+    GemFS_WriteFile(boot_msg_buffer, 0x200, DriveID, Partition, boot_msg_entry);
 }
 
 uint64_t GemFS_BlockToLBA(enum GemFS_DriveIDs DriveID, uint8_t Partition, uint64_t Block){
@@ -89,7 +153,7 @@ uint64_t GemFS_FindFreeBlock(enum GemFS_DriveIDs DriveID, uint8_t Partition){
     return size+1;
 }
 
-void GemFS_mkdir(enum GemFS_DriveIDs DriveID, uint8_t Partition, char* name, size_t name_len, uint8_t flags, uint64_t ParentIndex){
+uint64_t GemFS_mkdir(enum GemFS_DriveIDs DriveID, uint8_t Partition, char* name, size_t name_len, uint8_t flags, uint64_t ParentIndex){
     uint64_t free = GemFS_FindFreeEntry(F0, 1);
 
     uint64_t free_block = GemFS_FindFreeBlock(DriveID, Partition);
@@ -107,6 +171,9 @@ void GemFS_mkdir(enum GemFS_DriveIDs DriveID, uint8_t Partition, char* name, siz
     new_dir.Sibling_Index = 0;
 
     struct GemFS_Entry parent_entry = GemFS_ReadEntry(DriveID, Partition, ParentIndex);
+    if(parent_entry.Flags & 0b00010000 != 0b00010000){
+        printf("<GemFS> Cannot give files a child.\n");
+    }
     if(parent_entry.Start != 0){
         // if needed, scan through the siblings and regiter it as a sibling
         struct GemFS_Entry cur_entry = GemFS_ReadEntry(DriveID, Partition, parent_entry.Start);
@@ -138,6 +205,74 @@ void GemFS_mkdir(enum GemFS_DriveIDs DriveID, uint8_t Partition, char* name, siz
         printf(")\n");
         SetTextColor(WHITE, BLACK);
     #endif
+
+    return free;
+}
+
+uint64_t GemFS_CreateFile(enum GemFS_DriveIDs DriveID, uint8_t Partition, char* name, size_t name_len, uint8_t flags, uint64_t ParentIndex, uint64_t Size){
+    uint64_t free_block = GemFS_FindFreeBlock(DriveID, Partition);
+    
+    for(int i = 0; i < Size; i++){
+        GemFS_FBB_SetBlock(DriveID, Partition, i+free_block);
+    }
+    
+    uint64_t free = GemFS_FindFreeEntry(DriveID, Partition);
+    
+    GemFS_mkdir(DriveID, Partition, name, name_len, flags, ParentIndex);
+
+    struct GemFS_Entry entry;
+    memset(&entry, 0, sizeof(struct GemFS_Entry));
+    entry = GemFS_ReadEntry(DriveID, Partition, free);
+    entry.Start = free_block;
+    entry.Size = Size;
+
+    uint64_t BS = Drives[DriveID].Main_Entries[Partition].Block_Size;
+
+    GemFS_WriteEntry(DriveID, Partition, free, entry);
+
+    return free;
+}
+
+void GemFS_WriteFile(void* buffer, size_t buffer_size, enum GemFS_DriveIDs DriveID, uint8_t Partition, uint64_t Index){
+    struct GemFS_Entry entry;
+    memset(&entry, 0, sizeof(struct GemFS_Entry));
+    entry = GemFS_ReadEntry(DriveID, Partition, Index);
+
+    if((entry.Flags >> 4) & 1 == 1){
+        #ifdef GEMFS_SANITY
+            SetTextColor(LRED, BLACK);
+            printf("<GemFS> Tried to write to directory ");
+            printf(entry.Name);
+            printf(" as if it is a file\n");
+            SetTextColor(WHITE, BLACK);
+        #endif
+        return;
+    }
+
+    #ifdef GEMFS_SANITY
+        SetTextColor(LCYAN, BLACK);
+        printf("<GemFS> Wrote %x blocks to file index %i\n", entry.Size, Index);
+        SetTextColor(WHITE, BLACK);
+    #endif
+
+    uint64_t BS = Drives[DriveID].Main_Entries[Partition].Block_Size;
+
+    FLOPPY_Write_LBA(DriveID, GemFS_BlockToLBA(DriveID, Partition, entry.Start), (uint64_t)buffer, entry.Size*BS);
+
+    GemFS_WriteEntry(DriveID, Partition, Index, entry);
+}
+
+void GemFS_ReadFile(enum GemFS_DriveIDs DriveID, uint8_t Partition, uint64_t index, void* buffer, uint64_t Blocks){
+    struct GemFS_Entry entry = GemFS_ReadEntry(DriveID, Partition, index);
+
+    if((entry.Flags >> 4) & 1){
+        printf("<GemFS> Tried to read file that was labeled as a directory ");
+        printf(entry.Name);
+        printf(" Flags: %b. Index: %i\n", entry.Flags, index);
+        return;
+    }
+
+    FLOPPY_Read_LBA(DriveID, GemFS_BlockToLBA(DriveID, Partition, entry.Start), (uint64_t)buffer, Blocks);
 }
 
 bool GemFS_Names_Equal(char* name1, char* name2){
@@ -178,11 +313,25 @@ uint64_t GemFS_Find_Index_By_Name(enum GemFS_DriveIDs DriveID, uint8_t Partition
         last_index = Cur_Child.Index;
     }
 
-    last_index = Cur_Child.Index;
+    if(Cur_Child.Sibling_Index == 0 && !GemFS_Names_Equal(name, Cur_Child.Name)){
+        #ifdef GEMFS_SANITY
+            SetTextColor(LRED, BLACK);
+            printf("<GemFS> ");
+            printf(Parent_Entry.Name);
+            printf(" has no children named ");
+            printf(name);
+            printf("\n");
+        #endif
+    }
 
-    printf("<GemFS> Found entry named ");
-    printf(name);
-    printf(" at index %i\n", last_index);
+    last_index = Cur_Child.Index;
+    #ifdef GEMFS_SANITY
+        SetTextColor(LCYAN, BLACK);
+        printf("<GemFS> Found entry named ");
+        printf(name);
+        printf(" at index %i\n", last_index);
+        SetTextColor(WHITE, BLACK);
+    #endif
 
     return last_index;
 }
@@ -311,7 +460,6 @@ struct GemFS_Entry GemFS_ReadEntry(enum GemFS_DriveIDs DriveID, uint8_t Partitio
     #endif
 
     FLOPPY_Read_LBA(DriveID, GemFS_BlockToLBA(DriveID, Partition, Block), (uint64_t)Entry_Buffer, 1);
-
     memcpy(&ret, &Entry_Buffer, sizeof(ret));
     return ret;
 }
@@ -356,8 +504,8 @@ struct GemFS_Main GemFS_ReadMainEntry(enum GemFS_DriveIDs DriveID, uint8_t Parti
 
     struct GemFS_Main ret;
     memset(&ret, 0, sizeof(ret));
-    memset(&Entry_Buffer, 0, 512);
 
+    
     if(DriveID < H0){
         FLOPPY_Read_LBA(DriveID, GemFS_BlockToLBA(DriveID, Partition, 1), (uint64_t)Entry_Buffer, 1);
         memcpy(&ret, &Entry_Buffer, sizeof(ret));

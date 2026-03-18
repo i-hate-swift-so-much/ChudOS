@@ -2,18 +2,17 @@
 
 #define BASE_FREQUENCY 1193180
 
-uint64_t SecondsSinceBoot = 0;
-uint64_t BiosTime = 0;
-uint64_t TimerWindow = 0;
-uint16_t Frequency = 1193180;
+volatile uint64_t SecondsSinceBoot = 0;
+volatile uint64_t BiosTime = 0;
+volatile uint64_t TimerWindow = 0;
+volatile uint16_t Frequency = 1193180;
 
-bool enabled = false;
+volatile bool tasks_enabled;
 
-bool tasks_enabled = false;
-
-bool first = true;
+volatile uint64_t die;
 
 void task_switch_frame(InterruptRegisters* dest, InterruptRegisters* src){
+    barrier();
     memcpy((void*)dest, (void*)src, sizeof(InterruptRegisters));
 }
 
@@ -21,17 +20,18 @@ void task_switch_frame(InterruptRegisters* dest, InterruptRegisters* src){
  * @brief Switches the current PID to the target, also sets the CR3.
  */
 void task_switch(int pid){
+    barrier();
     Task* task = &TaskManager[pid];
     
     TASKMGR_set_current(pid);
 
     uint64_t TASK_CR3 = task->Base_PML4;
-    mem_set_cr3(TASK_CR3);
+    mem_set_cr3(TASK_CR3, true);
 }
 
 int find_next_task(int cur_pid){
     for(int i = cur_pid+1; i < 512; i++){
-        if(TaskManager[i].Exists == true){
+        if(TaskManager[i].Exists == true && TaskManager[i].ProcessState != CREATION_PROCESS_STATE){
             return i;
         }
     }
@@ -72,42 +72,52 @@ void PrintSecondsSinceBoot(){
     print("]", 0);
 }
 
+void EnableTasks(){
+    pic_mask(0x00);
+    tasks_enabled = true;
+    printf("Tasks Enabled!\n");
+    __asm__ __volatile__("mfence" ::: "memory");
+    pic_unmask(0x00);
+    barrier();
+}
+
 void TimerInterrupt(InterruptRegisters* frame){    
     TimerWindow++;
-    
-    TimerWindow %= 1000;
-    if(TimerWindow == 999){SecondsSinceBoot++;}
 
-    if(!tasks_enabled){
-        task_switch_frame(&TaskManager[0].SavedRegisters, frame);
+    int cur_pid = TASKMGR_get_current();
+
+    volatile Task* cur_task = (volatile Task*)&TaskManager[cur_pid];
+
+    if(cur_task->ProcessState == CREATION_PROCESS_STATE){
+        pic_send_eoi(0x00);
+        return;
     }
 
-    if(tasks_enabled){
-        int cur_pid = TASKMGR_get_current();
+    // update cur tasks regs
+    task_switch_frame(&cur_task->SavedRegisters, frame);
 
-        // update cur tasks regs
-        task_switch_frame(&TaskManager[cur_pid].SavedRegisters, frame);
+    if(cur_task->UsedTicks >= cur_task->MaxTicks || cur_task->ProcessState == KILL_PROCESS_STATE){
+        barrier();
 
-        if(TaskManager[cur_pid].UsedTicks >= TaskManager[cur_pid].MaxTicks || TaskManager[cur_pid].ProcessState == KILL_PROCESS_STATE){
-            TaskManager[cur_pid].UsedTicks = 0;
-            if(TaskManager[cur_pid].ProcessState == KILL_PROCESS_STATE){
-                TaskManager[cur_pid].ProcessState = NULL_PROCESS_STATE;
-                TaskManager[cur_pid].Exists = false;
-            }
-            int next_pid = find_next_task(cur_pid);
-
-            if(next_pid == 512){ 
-                pic_send_eoi(0x00); 
-                return; 
-            }
-
-            // make it so we return with the correct next task's info
-            task_switch_frame(frame, &TaskManager[next_pid].SavedRegisters);
-            
-            task_switch(next_pid);
-        }else{
-            TaskManager[cur_pid].UsedTicks++;
+        cur_task->UsedTicks = 0;
+        if(cur_task->ProcessState == KILL_PROCESS_STATE){
+            cur_task->ProcessState = NULL_PROCESS_STATE;
+            cur_task->Exists = false;
         }
+        int next_pid = find_next_task(cur_pid);
+
+        volatile Task* NextTask = (volatile Task*)&TaskManager[next_pid];
+
+        if(next_pid == 512){ 
+            next_pid = 0;
+        }
+
+        // make it so we return with the correct next task's info
+        task_switch_frame(frame, &NextTask->SavedRegisters);
+
+        task_switch(next_pid);
+    }else{
+        cur_task->UsedTicks++;
     }
 
     pic_send_eoi(0x00);
@@ -167,8 +177,7 @@ void ForceSwitch(InterruptRegisters* frame){
     int next_pid = find_next_task(cur_pid);
 
     if(next_pid == 512){ 
-        pic_send_eoi(0x00); 
-        return; 
+        next_pid = 0;
     }
 
     // make it so we return with the correct next task's info

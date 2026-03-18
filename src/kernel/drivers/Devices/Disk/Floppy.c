@@ -14,7 +14,7 @@ bool FLOPPY_FDC_Present = false;
 
 FLOPPY_Info_Struct FLOPPY_Main_Info;
 
-bool floppy_result_ready = false;
+volatile bool floppy_result_ready = false;
 
 // makes sure the motherboard has an actual FDC
 void FLOPPY_Check_FDC(){
@@ -126,7 +126,7 @@ int FLOPPY_Init_Controller(){
     #endif
 
     // second, set up the IRQ
-    SetIDTEntry(FLOPPY_IRQ_INDEX, (uint64_t)floppy_drive_stub, 0x08, 0x8E, 0x01);
+    SetIDTEntry(FLOPPY_IRQ_INDEX, (uint64_t)floppy_drive_stub, 0x08, 0x8F, 0x00);
     pic_unmask(0x06);
 
 
@@ -168,7 +168,7 @@ int FLOPPY_Init_Controller(){
 
 void FLOPPY_IRQ(InterruptRegisters* registers){
     floppy_result_ready = true;
-    pic_send_eoi(0x26);
+    pic_send_eoi(0x06);
 }
 
 /*
@@ -300,6 +300,7 @@ int FLOPPY_Read_CHS(uint8_t Drive, uint8_t Cylinder, uint8_t Head, uint8_t Secto
             // send the command
             FLOPPY_Send_Command(FLOPPY_CMD_READ, 8, Parameters);
 
+            uint8_t sm = 0;
             while(!floppy_result_ready){}
 
             FLOPPY_Read_Result_Bytes(7, Results);
@@ -385,6 +386,7 @@ int FLOPPY_Read_CHS(uint8_t Drive, uint8_t Cylinder, uint8_t Head, uint8_t Secto
         printf("st2: %b\n", Results[2]);
         SetTextColor(WHITE, BLACK);
     #endif
+    //print("a", 2);
 
     return 0;
 }
@@ -461,7 +463,7 @@ int FLOPPY_Write_CHS(uint8_t Drive, uint8_t Cylinder, uint8_t Head, uint8_t Sect
             // send the command
             FLOPPY_Send_Command(FLOPPY_CMD_WRITE, 8, Parameters);
 
-        while(!floppy_result_ready){}
+            while(!floppy_result_ready){}
 
             FLOPPY_Read_Result_Bytes(7, Results);
 

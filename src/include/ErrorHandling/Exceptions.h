@@ -4,6 +4,7 @@
 #include "Display/VGA.h"
 #include "LowLevel/IDT.h"
 #include "LowLevel/Memory.h"
+#include "Userland/Tasks.h"
 
 void HandlePageFault(InterruptRegistersError* regs);
 void GeneralProtectionFault(InterruptRegistersError* regs);
