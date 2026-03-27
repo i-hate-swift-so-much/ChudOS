@@ -54,11 +54,15 @@ void GemFS_FormatPartition(enum GemFS_DriveIDs DriveID, uint8_t Partition){
     /*
         /
         |--- dev/
+        |    |
         |    |--- zero/
         |    +--- urand/
-        |    +--- shell.elf
         |--- etc/
-        |    |--- boot_msg.txt
+        |    |
+        |    +--- boot_msg.txt
+        |--- bin/
+        |    |
+        |    +--- shell.elf
     */
     uint64_t dev_entry = GemFS_mkdir(DriveID, Partition, "dev", 4, 0b00010111, 0);
     GemFS_mkdir(DriveID, Partition, "zero", 5, 0b00010111, 1);
@@ -66,12 +70,15 @@ void GemFS_FormatPartition(enum GemFS_DriveIDs DriveID, uint8_t Partition){
     uint64_t etc_entry = GemFS_mkdir(DriveID, Partition, "etc", 4, 0b00010111, 0);
     uint64_t bin_entry = GemFS_mkdir(DriveID, Partition, "bin", 4, 0b00010111, 0);
 
-    uint8_t shell_buffer[0x2000];
-    memset(shell_buffer, 0, 0x2000);
-    FLOPPY_Read_LBA(DriveID, 1500, (uint64_t)shell_buffer, 16);
     uint64_t shell_entry = GemFS_CreateFile(DriveID, Partition, "shell.elf", 12, 0b00001111, bin_entry, 9);
-    GemFS_WriteFile(shell_buffer, 0x2000, DriveID, Partition, shell_entry);
+    struct GemFS_Entry entry = GemFS_ReadEntry(DriveID, Partition, shell_entry);
+    entry.Start = 1500;
+    GemFS_WriteEntry(F0, Partition, shell_entry, entry);
 
+    uint64_t hello_entry = GemFS_CreateFile(DriveID, Partition, "hello_world.elf", 12, 0b00001111, bin_entry, 9);
+    struct GemFS_Entry hentry = GemFS_ReadEntry(DriveID, Partition, hello_entry);
+    hentry.Start = 1600;
+    GemFS_WriteEntry(F0, Partition, hello_entry, hentry);
     int i = 0;
     int last_i = 0;
 

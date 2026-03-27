@@ -80,6 +80,7 @@ struct ProgramHeader64_s{
 typedef struct ProgramHeader64_s ProgramHeader64;
 
 int RegisterTask(uint64_t base_vaddr, uint64_t entry_point, uint64_t page_count, uint8_t maxticks, uint64_t stack_start, uint64_t pml4);
+int RegisterTaskStrict(uint64_t base_vaddr, uint64_t entry_point, uint64_t page_count, uint8_t maxticks, uint64_t stack_start, uint64_t pml4, int pid);
 
 /**
     * @brief Loads a program into memory and registers it.
@@ -88,9 +89,14 @@ int RegisterTask(uint64_t base_vaddr, uint64_t entry_point, uint64_t page_count,
     * @param Program_Size The size (in bytes) of the program
 */
 void* LoadElf(uint8_t Drive, uint64_t LBA, size_t Program_Size);
+void* LoadElfStrict(uint8_t Drive, uint64_t LBA, size_t Program_Size, int pid, uint64_t NewPML4);
 
+void free_task_memory(int pid);
 int TASKMGR_get_current();
 void TASKMGR_set_current(int pid);
 int FindFreeFileDescriptor(int PID);
+
 void KillTask(int PID);
+
 void LoadElf_GemFS(enum GemFS_DriveIDs DriveID, uint8_t Partition, uint64_t Blocks, uint64_t Index);
+void LoadElfStrict_GemFS(enum GemFS_DriveIDs DriveID, uint8_t Partition, uint64_t Blocks, uint64_t Index, int pid, uint64_t NewPML4);

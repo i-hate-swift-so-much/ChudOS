@@ -94,6 +94,8 @@ typedef struct{
 typedef volatile struct{
     uint64_t BaseVirtualAddress;
     uint64_t PageCount;
+    uint64_t StackBaseVirtualAddress;
+    uint64_t StackPageCount;
 }TaskMemoryDefinition ;
 
 typedef struct{
@@ -221,6 +223,8 @@ void mem_set_cr3(uint64_t addr, bool sti);
 uint64_t Create_User_Memory();
 
 uint64_t phys_addr(void* pointer);
+
+uint16_t find_first_present(uint64_t* table);
 
 extern volatile uint64_t Kernel_PML4_Physical;
 extern volatile uint64_t PML4_Physical;

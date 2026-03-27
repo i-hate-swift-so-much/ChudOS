@@ -319,11 +319,11 @@ void* alloc_page(PageDetails* page){
     uint16_t PageP = DeconstructedP.PT_Entry;
 
     if(page->physical_address >= total_mem){
-        printf("OH MY GOD STOP FUCK NO STOP\n");
-        asm volatile(
-            "cli\n"
-            "hlt\n"
-        );
+        cls();
+        printf("Critical Memory Failure, attempted to map physical memory above total_mem\n");
+        printf("Physical Address: %x | total_mem: %x\n", page->physical_address, total_mem);
+        
+        panic();
     }
 
     if((phys_frames[page->physical_address/0x1000].flags & 0b10) == 0b10){ 
@@ -710,4 +710,20 @@ uint64_t phys_addr(void* pointer){
     uint64_t* info = CalculatePagePhysicalEntryAddress(&entries);
 
     return (*info & 0x000FFFFFFFFFF000ULL) | offset;
+}
+
+uint16_t find_first_present(uint64_t* table){
+    uint16_t i = 0;
+    while(i <= 512 && (table[i++] & 1) != 1){}
+    return i-1;
+}
+
+bool dyn_alloc_occurred = true;
+
+void* dyn_alloc(size_t bytes){
+
+}
+
+void dyn_free(void* section){
+
 }

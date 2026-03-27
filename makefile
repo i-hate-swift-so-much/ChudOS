@@ -126,3 +126,4 @@ link_kernel ${kernel_obj} ${drivers_obj}:
 	dd if=${kernel_flat} of=${output_img} bs=512 seek=500 conv=notrunc
 	dd if=obj/kernel_setup.bin of=${output_img} bs=512 seek=350 conv=notrunc
 	dd if=program_bin/shell.elf of=${output_img} bs=512 seek=1500 conv=notrunc
+	dd if=program_bin/test_program.elf of=${output_img} bs=512 seek=1600 conv=notrunc

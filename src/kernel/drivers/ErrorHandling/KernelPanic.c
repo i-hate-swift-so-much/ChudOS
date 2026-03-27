@@ -10,7 +10,7 @@ void KernelPanic(InterruptRegistersError* regs){
         : "=r"(CR3) : :
     );
 
-    printf("HAPPENING ALERT!!!!\n\t");
+    printf("HAPPENING ALERT FROM PID %i!!!!\n\t", TASKMGR_get_current());
     printf("General Registers:\n\t\t");
     printf("RAX: %x ", regs->rax);
     printf("RBX: %x ", regs->rbx);
@@ -34,7 +34,6 @@ void KernelPanic(InterruptRegistersError* regs){
     printf("SS: %x\n\t\t", regs->ss);
     printf("RFLAGS: %x\n\t\t", regs->rflags);
     printf("ERROR CODE: %x\n", regs->error_code);
-    printf("MISC\n\tCUR_PID: %x\n", TASKMGR_get_current());
     if(regs->rip >= VIRTUAL_MEMORY_BARRIER){
         printf("This panic seems to have originated from kernel space, please report this on the github issues page.\n");
     }else{

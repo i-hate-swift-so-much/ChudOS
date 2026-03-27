@@ -57,9 +57,9 @@ void HandlePageFault(InterruptRegistersError* regs){
     virtual_address = virtual_address & ~0xFFF;
 
     Task* cur_task = &TaskManager[TASKMGR_get_current()];
-    cur_task->MemoryData.PageCount+=1;
 
     if(virtual_address < VIRTUAL_MEMORY_BARRIER){
+        mem_set_cr3(cur_task->Base_PML4, false);
         if(regs->rip < VIRTUAL_MEMORY_BARRIER){
             // determine if the entry is CoW available.
             PageEntries entries = ExtractPageEntries(virtual_address);
@@ -76,8 +76,9 @@ void HandlePageFault(InterruptRegistersError* regs){
                     return;
                 }
                 memcpy(CoW_bounce_buffer, (void*)(virtual_address & ~0xFFF), 0x1000);
-                uint16_t flags = (*page_data & 0xFFF) | 0b10;
+                uint16_t flags = (*page_data & 0xFFF) | 0b10 & (~1 << 9); // enable writes and disable CoW
                 uint8_t xd = *page_data >> 63;
+                phys_frames[(*page_data & 0x000FFFFFFFFFF000ULL) / 0x1000].refcount--;
                 *page_data = (
                     phys | 
                     (((uint64_t)xd) << 63) | 
@@ -87,7 +88,12 @@ void HandlePageFault(InterruptRegistersError* regs){
                 memcpy((void*)(virtual_address & ~0xFFF), CoW_bounce_buffer, 0x1000);
             }
         }
-        mem_set_cr3(cur_task->Base_PML4, false);
+        if(regs->cr2 >= cur_task->MemoryData.StackBaseVirtualAddress-0x1000){
+            cur_task->MemoryData.StackBaseVirtualAddress-=0x1000;
+            cur_task->MemoryData.StackPageCount++;
+        }else{
+            cur_task->MemoryData.PageCount+=1;
+        }
         PageDetails newUser;
         newUser.flags.flags = USER_FLAGS;
         newUser.flags.Execute_Disable = false;
@@ -113,6 +119,8 @@ void HandlePageFault(InterruptRegistersError* regs){
 void GeneralProtectionFault(InterruptRegistersError* regs){
     int cur = TASKMGR_get_current();
     printf("#GF RIP=%x (Task=%i)\n", regs->rip, cur);
+
+    halt();
 
     KillTask(cur);
     InterruptRegisters regs_i = ErrToInt(*regs);

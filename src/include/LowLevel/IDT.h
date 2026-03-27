@@ -1,5 +1,8 @@
 #pragma once
 
+#define halt() asm volatile("cli\n" "hlt\n");
+#define panic() asm volatile("int $0x9E\n");
+
 #include <stdint.h>
 
 volatile struct InterruptRegisters_s{

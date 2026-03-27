@@ -6,9 +6,11 @@ void SetUpShell(){
     uint64_t Shell_Entry = GemFS_Directory_to_Index(0, 1, "/bin/shell.elf");
 
     struct GemFS_Entry shell_entry = GemFS_ReadEntry(0, 1, Shell_Entry);
-    struct GemFS_Entry shell_parent_entry = GemFS_ReadEntry(0, 1, Shell_Entry-1);
 
-    LoadElf_GemFS(F0, 1, 9, Shell_Entry);
+    printf("Shell_Entry: %x\n", shell_entry.Start);
+
+    //LoadElf_GemFS(F0, 1, 2, Shell_Entry);
+    LoadElf(F0, 1500, 0);
 
     TASKMGR_set_current(0);
 
