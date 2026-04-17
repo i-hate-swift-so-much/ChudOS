@@ -4,6 +4,7 @@
 #include "Libraries/std.h"
 #include "filesys/gemfs.h"
 
+
 // Defines how many cycles each level of priority can use
 #define SUDO_PRIORITY 40
 #define USER_PRIORITY 20
@@ -17,6 +18,11 @@
 #define READY_PROCESS_STATE 0x02 // process is ready to be ran by the cpu
 #define WAITING_PROCESS_STATE 0x03 // process is waiting in one of the waiting queues
 #define KILL_PROCESS_STATE 0x04 // the process should be terminated
+
+#define WAITING_REASON_NULL 0x00 // Used when the process isn't waiting. Filler
+#define WAITING_REASON_INPUT 0x01 // Used when the process is waiting for keyboard input through read(STD_IN_FD, &foo1, foo2);
+#define WAITING_REASON_SLEEP 0x02 // Used when the process is sleeping for a specified amount of ticks (see struct Tasks_s.SleepCycle and struct Tasks_s.RequestedSleepCycle)
+#define WAITING_REASON_CHILD 0x03 // Used when the process is waiting for its child to do something
 
 // values for e_type
 #define ET_NONE 0x00
@@ -79,6 +85,15 @@ struct ProgramHeader64_s{
 
 typedef struct ProgramHeader64_s ProgramHeader64;
 
+uint64_t get_mem_low_high(uint64_t vaddr, uint64_t page_count, bool fwd);
+bool mem_access_ok(uint64_t vaddr, int pid);
+uint64_t copy_from_user(void* dest, const void* src, size_t n);
+uint64_t strcpy_from_user(void* dest, const void* src, size_t count);
+
+
+void SignalOwner(volatile Task* Origin, enum ChildWaitReasons Reason, int ret);
+void DumpTaskState(int pid);
+
 int RegisterTask(uint64_t base_vaddr, uint64_t entry_point, uint64_t page_count, uint8_t maxticks, uint64_t stack_start, uint64_t pml4);
 int RegisterTaskStrict(uint64_t base_vaddr, uint64_t entry_point, uint64_t page_count, uint8_t maxticks, uint64_t stack_start, uint64_t pml4, int pid);
 
@@ -89,9 +104,11 @@ int RegisterTaskStrict(uint64_t base_vaddr, uint64_t entry_point, uint64_t page_
     * @param Program_Size The size (in bytes) of the program
 */
 void* LoadElf(uint8_t Drive, uint64_t LBA, size_t Program_Size);
-void* LoadElfStrict(uint8_t Drive, uint64_t LBA, size_t Program_Size, int pid, uint64_t NewPML4);
+void* LoadElfStrict(uint8_t Drive, uint64_t LBA, size_t Program_Size, int pid, uint64_t NewPML4, char* argv[], int argc);
+int SetupTaskStack(int pid, char* argv[], int argc);
 
 void free_task_memory(int pid);
+void free_task_memory_by_pml4(uint64_t pml4);
 int TASKMGR_get_current();
 void TASKMGR_set_current(int pid);
 int FindFreeFileDescriptor(int PID);
@@ -99,4 +116,4 @@ int FindFreeFileDescriptor(int PID);
 void KillTask(int PID);
 
 void LoadElf_GemFS(enum GemFS_DriveIDs DriveID, uint8_t Partition, uint64_t Blocks, uint64_t Index);
-void LoadElfStrict_GemFS(enum GemFS_DriveIDs DriveID, uint8_t Partition, uint64_t Blocks, uint64_t Index, int pid, uint64_t NewPML4);
+void LoadElfStrict_GemFS(enum GemFS_DriveIDs DriveID, uint8_t Partition, uint64_t Blocks, uint64_t Index, int pid, uint64_t NewPML4, char* argv[], int argc);

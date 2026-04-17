@@ -1,78 +1,61 @@
 #include "LowLevel/GDT.h"
 
-GDTR Main_GDTR;
-GDT_Entry Main_GDT[10];
+volatile struct GDTR Main_GDTR;
+uint8_t Main_GDT[64];
+
+volatile struct TSS ActiveTSS;
 
 void LoadGDT(){
     Main_GDTR.base = (uint64_t)&Main_GDT;
     Main_GDTR.limit = sizeof(Main_GDT) - 1;
 
     asm volatile(
-        "lgdt %0"
+        "lgdtq %0"
         : 
         : "m"(Main_GDTR) 
         : "memory"
     );
 
     return;
-
-    asm volatile(
-        "pushq $0x08\n"     // code segment selector
-        "lea 1f(%rip), %rax\n" // target RIP
-        "pushq %rax\n"
-        "lretq\n"           // far return to update CS
-        "1:\n"
-    );
 }
 
-void SetGDTEntry(size_t offset, GDT_Entry entry){
-    *(Main_GDT+offset) = entry;
+void SetGDTEntry(uint32_t Base, uint32_t Limit, uint8_t Flags, uint8_t Access, uint16_t Offset){
+    struct GDT_Entry* entry = (struct GDT_Entry*)(Main_GDT+Offset);
+    entry->base_0 = Base & 0xffff;
+    entry->base_1 = (Base >> 16) & 0xff;
+    entry->base_2 = (Base >> 24) & 0xff;
+    entry->access = Access;
+    entry->flags_limits = Flags << 4 | ((Limit >> 16) & 0xf);
+    entry->limit = Limit & 0xff;
 }
 
-GDT_Entry KernelGDTCode;
-GDT_Entry KernelGDTData;
-GDT_Entry UserGDTCode;
-GDT_Entry UserGDTData;
-TSS_GDT Main_TSS_GDT;
+void SetGDTSystemEntry(uint64_t Base, uint32_t Limit, uint8_t Flags, uint8_t Access, uint16_t Offset){
+    struct TSS_GDT* entry = (struct TSS_GDT*)(Main_GDT+Offset);
+    entry->base_0 = Base & 0xffff;
+    entry->base_1 = (Base >> 16) & 0xff;
+    entry->base_2 = (Base >> 24) & 0xff;
+    entry->access = Access;
+    entry->flags_limits = Flags << 4 | ((Limit >> 16) & 0xf);
+    entry->limit = Limit & 0xff;
+    entry->base_3 = (Base >> 32) & 0xffffffff;
+    entry->reserved = 0;
+}
 
-void SetupBasicGDT(){
-    memset(Main_GDT, 0, 80);
+void SetActiveTSS(uint64_t RSP0, uint64_t RSP1, uint64_t RSP2, uint64_t IST1, uint64_t IST2, uint64_t IST3, uint64_t IST4, uint64_t IST5, uint64_t IST6, uint64_t IST7, uint16_t IO_Base){
+    memset(&ActiveTSS, 0, sizeof(ActiveTSS));
+    ActiveTSS.rsp0 = RSP0;
+    ActiveTSS.rsp1 = RSP1;
+    ActiveTSS.rsp2 = RSP2;
+    ActiveTSS.ist1 = IST1;
+    ActiveTSS.ist2 = IST2;
+    ActiveTSS.ist3 = IST3;
+    ActiveTSS.ist4 = IST4;
+    ActiveTSS.ist5 = IST5;
+    ActiveTSS.ist6 = IST6;
+    ActiveTSS.ist7 = IST7;
+    ActiveTSS.io_map_base = IO_Base;
+}
 
-    KernelGDTCode.base0 = 0;
-    KernelGDTCode.base1 = 0;
-    KernelGDTCode.base2 = 0;
-    KernelGDTCode.limit0 = 0;
-    KernelGDTCode.access = 0b10011010;
-    KernelGDTCode.flags = 0b10100000;
-
-    SetGDTEntry(0x08, KernelGDTCode);
-
-    KernelGDTData.base0 = 0;
-    KernelGDTData.base1 = 0;
-    KernelGDTData.base2 = 0;
-    KernelGDTData.limit0 = 0;
-    KernelGDTData.access = 0b10010010;
-    KernelGDTData.flags = 0b10100000;
-
-    SetGDTEntry(0x10, KernelGDTData);
-
-    UserGDTCode.base0 = 0;
-    UserGDTCode.base1 = 0;
-    UserGDTCode.base2 = 0;
-    UserGDTCode.limit0 = 0xFFFF;
-    UserGDTCode.access = 0b11111010;
-    UserGDTCode.flags = 0b10101111; 
-
-    //SetGDTEntry(3, UserGDTCode);
-
-    UserGDTData.base0 = 0;
-    UserGDTData.base1 = 0;
-    UserGDTData.base2 = 0;
-    UserGDTData.limit0 = 0xFFFF;
-    UserGDTData.access = 0b11101010;
-    UserGDTData.flags = 0b10101111;
-
-    //SetGDTEntry(4, UserGDTData);
-
-    LoadGDT();
+void UpdateActiveTSS(struct TSS* NewTSS){
+    memcpy(&ActiveTSS, NewTSS, sizeof(struct TSS));
 }

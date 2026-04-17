@@ -5,8 +5,9 @@
 #include "LowLevel/IDT.h"
 #include "LowLevel/Memory.h"
 #include "Userland/Tasks.h"
+#include "KernelPanic.h"
 
-void HandlePageFault(InterruptRegistersError* regs);
+void HandlePageFault(InterruptRegisters* regs);
 void GeneralProtectionFault(InterruptRegistersError* regs);
 void InvalidOpcode(InterruptRegistersError* regs);
 extern void gpf_stub();

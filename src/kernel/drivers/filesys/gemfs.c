@@ -70,14 +70,14 @@ void GemFS_FormatPartition(enum GemFS_DriveIDs DriveID, uint8_t Partition){
     uint64_t etc_entry = GemFS_mkdir(DriveID, Partition, "etc", 4, 0b00010111, 0);
     uint64_t bin_entry = GemFS_mkdir(DriveID, Partition, "bin", 4, 0b00010111, 0);
 
-    uint64_t shell_entry = GemFS_CreateFile(DriveID, Partition, "shell.elf", 12, 0b00001111, bin_entry, 9);
+    uint64_t shell_entry = GemFS_CreateFile(DriveID, Partition, "shell.elf", 9, 0b00001111, bin_entry, 9);
     struct GemFS_Entry entry = GemFS_ReadEntry(DriveID, Partition, shell_entry);
-    entry.Start = 1500;
+    entry.Start = GemFS_LBAToBlock(DriveID, Partition, 1500);
     GemFS_WriteEntry(F0, Partition, shell_entry, entry);
 
-    uint64_t hello_entry = GemFS_CreateFile(DriveID, Partition, "hello_world.elf", 12, 0b00001111, bin_entry, 9);
+    uint64_t hello_entry = GemFS_CreateFile(DriveID, Partition, "hello_world.elf", 15, 0b00001111, bin_entry, 9);
     struct GemFS_Entry hentry = GemFS_ReadEntry(DriveID, Partition, hello_entry);
-    hentry.Start = 1600;
+    hentry.Start = GemFS_LBAToBlock(DriveID, Partition, 1600);
     GemFS_WriteEntry(F0, Partition, hello_entry, hentry);
     int i = 0;
     int last_i = 0;
@@ -132,6 +132,13 @@ uint64_t GemFS_BlockToLBA(enum GemFS_DriveIDs DriveID, uint8_t Partition, uint64
     if(BS == 0){ BS = 1; }
     struct GemFS_MBRPartition part = Drives[DriveID].PartitionTable[Partition];
     return (Block * BS) + part.LBA_Start;
+}
+
+uint64_t GemFS_LBAToBlock(enum GemFS_DriveIDs DriveID, uint8_t Partition, uint64_t LBA){
+    uint16_t BS = Drives[DriveID].Main_Entries[Partition].Block_Size;
+    if(BS == 0){ BS = 1; }
+    struct GemFS_MBRPartition part = Drives[DriveID].PartitionTable[Partition];
+    return (LBA - part.LBA_Start) / BS;
 }
 
 uint64_t FBB_Read[64];
@@ -282,8 +289,9 @@ void GemFS_ReadFile(enum GemFS_DriveIDs DriveID, uint8_t Partition, uint64_t ind
     FLOPPY_Read_LBA(DriveID, GemFS_BlockToLBA(DriveID, Partition, entry.Start), (uint64_t)buffer, Blocks);
 }
 
-bool GemFS_Names_Equal(char* name1, char* name2){
-    for(int i = 0; i < 128; i++){
+bool GemFS_Names_Equal(char* name1, char* name2, size_t len1, size_t len2){
+    if(len1 != len2){ return false; }
+    for(int i = 0; i < len1; i++){
         if(name1[i] == 0x0 && name2[i] == 0x0) { 
             return true;
         }else if(name1[i] != name2[i]){
@@ -315,12 +323,12 @@ uint64_t GemFS_Find_Index_By_Name(enum GemFS_DriveIDs DriveID, uint8_t Partition
 
     uint64_t last_index = Cur_Child.Index;
 
-    while(!GemFS_Names_Equal(name, Cur_Child.Name) && Cur_Child.Sibling_Index != 0){
+    while(!GemFS_Names_Equal(name, Cur_Child.Name, calculate_string_length(name), calculate_string_length(Cur_Child.Name)) && Cur_Child.Sibling_Index != 0){
         Cur_Child = GemFS_ReadEntry(DriveID, Partition, Cur_Child.Sibling_Index);
         last_index = Cur_Child.Index;
     }
 
-    if(Cur_Child.Sibling_Index == 0 && !GemFS_Names_Equal(name, Cur_Child.Name)){
+    if(Cur_Child.Sibling_Index == 0 && !GemFS_Names_Equal(name, Cur_Child.Name, calculate_string_length(name), calculate_string_length(Cur_Child.Name))){
         #ifdef GEMFS_SANITY
             SetTextColor(LRED, BLACK);
             printf("<GemFS> ");
@@ -329,6 +337,7 @@ uint64_t GemFS_Find_Index_By_Name(enum GemFS_DriveIDs DriveID, uint8_t Partition
             printf(name);
             printf("\n");
         #endif
+        return -1;
     }
 
     last_index = Cur_Child.Index;
@@ -366,6 +375,7 @@ uint64_t GemFS_Directory_to_Index(enum GemFS_DriveIDs DriveID, uint8_t Partition
             i++;
             last_i = i;
             cur_index = GemFS_Find_Index_By_Name(DriveID, Partition, scan, cur_index);
+            if(cur_index == -1){ return -1; }
             memset(scan, 0, 128);
             if(cur == '\0'){
                 should_scan = false;

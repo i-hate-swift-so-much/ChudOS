@@ -54,6 +54,7 @@ struct GemFS_DriveData{
 
 extern struct GemFS_DriveData Drives[16];
 
+uint64_t GemFS_LBAToBlock(enum GemFS_DriveIDs DriveID, uint8_t Partition, uint64_t LBA);
 uint64_t GemFS_BlockToLBA(enum GemFS_DriveIDs DriveID, uint8_t Partition, uint64_t Block);
 void GemFS_GetFBB(enum GemFS_DriveIDs DriveID, uint8_t Partition);
 bool GemFS_FBB_GetBlock(enum GemFS_DriveIDs DriveID, uint8_t Partition, uint64_t Block);

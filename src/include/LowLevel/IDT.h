@@ -7,7 +7,7 @@
 
 volatile struct InterruptRegisters_s{
     uint64_t int_no;
-
+    
     uint64_t cr2;
 
     uint64_t r15;
@@ -28,6 +28,7 @@ volatile struct InterruptRegisters_s{
     uint64_t rax;
 
     // Pushed automatically by CPU:
+    uint64_t error_code;
     uint64_t rip;
     uint64_t cs;
     uint64_t rflags;

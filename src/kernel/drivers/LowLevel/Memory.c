@@ -45,7 +45,7 @@ void mem_ClearBit(uint64_t address) {
 
 // Get a bit from the bitmap of physical space, used for fragmentation
 uint8_t mem_GetBit(uint64_t address){
-    return (phys_frames[address/0x1000].flags) & 1;
+    return ((phys_frames[address/0x1000].flags) & 0b111) != 0;
 }
 
 // Sets up a new PML4 table for a user task. Follows the basic code from boot2.s. Returns the new PML4 tables physical address
@@ -327,10 +327,12 @@ void* alloc_page(PageDetails* page){
     }
 
     if((phys_frames[page->physical_address/0x1000].flags & 0b10) == 0b10){ 
+        print("Refused to map page: DIRTY\n", 28);
         return NULL;
     }
 
     if((phys_frames[page->physical_address/0x1000].flags & 0b100) == 0b100 && page->virtual_address < VIRTUAL_MEMORY_BARRIER){
+        printf("Refused to map page: ACCESS (p=%x, v=%x, f=%b)\n", page->physical_address, page->virtual_address, phys_frames[page->physical_address/0x1000].flags);
         return NULL;
     }
 
@@ -531,7 +533,7 @@ void* malloc_specific(Task* TaskDetails, uint64_t RequestedAddress, PagePermissi
     size_t n: How many bytes should be loaded from src to dest
 */
 void* memcpy(void* dest, const void* src, size_t n){
-    uint8_t* d = (uint8_t*)dest;
+    volatile uint8_t* d = (volatile uint8_t*)dest;
     const uint8_t* s = (const uint8_t*)src;
 
     while(n--){
@@ -584,7 +586,7 @@ void mem_bitmap_dump(uint16_t PT){
 }
 
 void memset(void* dest, uint8_t value, size_t bytes){
-    uint8_t* dest_m = (uint8_t*) dest;
+    volatile uint8_t* dest_m = (volatile uint8_t*) dest;
     
     while(bytes--){
         *dest_m++ = value;
@@ -718,12 +720,49 @@ uint16_t find_first_present(uint64_t* table){
     return i-1;
 }
 
-bool dyn_alloc_occurred = true;
-
-void* dyn_alloc(size_t bytes){
-
+uint64_t FindNextFreePhysicalContinuous(size_t page_count){
+    uint64_t phys = 0;
+    for(phys = 0; phys < total_mem; phys+=0x1000*page_count){
+        // check each page
+        bool encountered_used = false;
+        for(int i = 0; i < page_count; i++){
+            if(mem_GetBit(phys+(0x1000*i)) == 1){ encountered_used = true; }
+        }
+        if(!encountered_used){ return phys; }
+    }
+    return 0;
 }
 
-void dyn_free(void* section){
+struct Slab_Cache_Descriptor slabs[128];
 
+void* kmalloc(size_t bytes){
+    int i;
+    for(i = 0; i <= 128; i++){
+        if(!slabs[i].used){ break; }
+    }
+    if(i == 128){ return NULL; }
+    if(bytes % 0x1000 > 0){ bytes &= !0xFFF; bytes+=0x1000; }
+    PageDetails page;
+    uint64_t phys = FindNextFreePhysicalContinuous(bytes/0x1000);
+    if(phys == 0){
+        printf("Couldn't find a continuous physical region of %x bytes\n", bytes);
+        return NULL;
+    }
+    page.virtual_address = phys + VIRTUAL_MEMORY_BARRIER;
+    page.physical_address = phys;
+    page.flags.flags = KERNEL_FLAGS;
+    page.flags.Execute_Disable = false;
+
+    slabs[i].used = true;
+    slabs[i].slab_size = bytes / 0x1000;
+    slabs[i].slab = alloc_page(&page);
+    for(int p = 1; p < bytes / 0x1000; bytes++){
+        page.virtual_address += 0x1000;
+        page.physical_address += 0x1000;
+        alloc_page(&page);
+    }
+}
+
+void kfree(uint64_t slab_addr){
+    slab_addr &= ~0xFFF;
 }

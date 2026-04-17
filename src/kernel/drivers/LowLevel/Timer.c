@@ -17,21 +17,29 @@ void task_switch_frame(InterruptRegisters* dest, InterruptRegisters* src){
 }
 
 /**
- * @brief Switches the current PID to the target, also sets the CR3.
+ * @brief Switches the current PID to the target, also sets the CR3 and TSS
  */
-void task_switch(int pid){
+void task_switch(int pid, InterruptRegisters* frame){
     barrier();
+    int cur = TASKMGR_get_current();
+    Task* old_task = &TaskManager[cur];
+
     Task* task = &TaskManager[pid];
     
     TASKMGR_set_current(pid);
 
+    asm volatile("mov %0, %%dr0" : : "r"((uint64_t)pid) : "memory");
+
     uint64_t TASK_CR3 = task->Base_PML4;
-    mem_set_cr3(TASK_CR3, true);
+    mem_set_cr3(TASK_CR3, true); // update cr3
+    task_switch_frame(frame, &task->SavedRegisters); // update return info
+    UpdateActiveTSS(&task->UserTSS); // update tss
 }
 
 int find_next_task(int cur_pid){
+    if(cur_pid == 511){return 0;}
     for(int i = cur_pid+1; i < 512; i++){
-        if(TaskManager[i].Exists == true && TaskManager[i].ProcessState != CREATION_PROCESS_STATE){
+        if(TaskManager[i].Exists == true && TaskManager[i].ProcessState == READY_PROCESS_STATE){
             return i;
         }
     }
@@ -96,7 +104,7 @@ void TimerInterrupt(InterruptRegisters* frame){
     // update cur tasks regs
     task_switch_frame(&cur_task->SavedRegisters, frame);
 
-    if(cur_task->UsedTicks >= cur_task->MaxTicks || cur_task->ProcessState == KILL_PROCESS_STATE){
+    if(cur_task->UsedTicks >= cur_task->MaxTicks || cur_task->ProcessState == KILL_PROCESS_STATE || cur_task->ProcessState == WAITING_PROCESS_STATE){
         barrier();
 
         cur_task->UsedTicks = 0;
@@ -108,17 +116,12 @@ void TimerInterrupt(InterruptRegisters* frame){
 
         volatile Task* NextTask = (volatile Task*)&TaskManager[next_pid];
 
-        if(next_pid == 512){ 
-            next_pid = 0;
-        }
-
-        // make it so we return with the correct next task's info
-        task_switch_frame(frame, &NextTask->SavedRegisters);
-
-        task_switch(next_pid);
+        task_switch(next_pid, frame);
     }else{
         cur_task->UsedTicks++;
     }
+
+    asm volatile("mov %0, %%dr0" : : "r"((uint64_t)TASKMGR_get_current()) : "memory");
 
     pic_send_eoi(0x00);
 }
@@ -173,15 +176,14 @@ void ForceSwitch(InterruptRegisters* frame){
     if(TaskManager[cur_pid].ProcessState == KILL_PROCESS_STATE){
         TaskManager[cur_pid].ProcessState = NULL_PROCESS_STATE;
         TaskManager[cur_pid].Exists = false;
+        memset(&TaskManager[cur_pid], 0, sizeof(Task));
     }
+
     int next_pid = find_next_task(cur_pid);
 
-    if(next_pid == 512){ 
-        next_pid = 0;
-    }
-
-    // make it so we return with the correct next task's info
-    task_switch_frame(frame, &TaskManager[next_pid].SavedRegisters);
+    //printf("FORCE SWITCH %i->%i\n", cur_pid, next_pid);
+    
+    task_switch_frame(&TaskManager[cur_pid].SavedRegisters, frame);
             
-    task_switch(next_pid);
+    task_switch(next_pid, frame);
 }

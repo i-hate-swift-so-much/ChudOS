@@ -35,12 +35,7 @@ void print(const char* toPrint, int length){
                     }
                 }
                 if(nextWordLength+curX > 79){
-                    if(curY == 25){
-                        NewLine();
-                    }else{
-                        curX = 0;
-                        curY++;
-                    }
+                    NewLine();
                 }else{
                     curX++;
                 }
@@ -82,6 +77,10 @@ void print(const char* toPrint, int length){
                 }else{
                     curX+=4;
                 }
+            }else if(curChar == '\r'){
+                curX = 0;
+            }else if(curChar == '\f'){
+                cls();
             }else{
                 WriteCharacter(curChar, curX, curY);
                 if(curX == 79 && curY == 24){

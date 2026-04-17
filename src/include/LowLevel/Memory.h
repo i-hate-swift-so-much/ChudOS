@@ -6,6 +6,8 @@
 #include "Display/VGA.h"
 #include "stdbool.h"
 
+#define sti() __asm__ volatile("sti" ::: "memory")
+#define cli() __asm__ volatile("cli" ::: "memory")
 #define barrier() __asm__ __volatile__("" ::: "memory")
 
 /*
@@ -80,8 +82,6 @@ typedef struct{
     uint64_t physical_address; // the physical address of the page
 }PageDetails ;
 
-// All of these addresses are virtual
-// 
 typedef struct{
     uint64_t Heap_Bottom; // the starting virtual address of the heap
     uint64_t Heap_Data_Offset; // the starting virtual address of the heap's data
@@ -89,13 +89,32 @@ typedef struct{
     uint32_t LinkedTaskPID; // the id of whatever task the heap is used by
 }HeapDesignator ;
 
-// This should only ever include the data about a task's actually code data and bss segment.
-// The data about a task's heap are in HeapDesignator
+struct TSS{
+    uint32_t reserved0;
+    uint64_t rsp0;
+    uint64_t rsp1;
+    uint64_t rsp2;
+    uint64_t reserved1;
+    uint64_t ist1;
+    uint64_t ist2;
+    uint64_t ist3;
+    uint64_t ist4;
+    uint64_t ist5;
+    uint64_t ist6;
+    uint64_t ist7;
+    uint64_t reserved2;
+    uint64_t reserved3;
+    uint16_t reserved4;
+    uint16_t io_map_base;
+}__attribute__((packed));
+
 typedef volatile struct{
     uint64_t BaseVirtualAddress;
     uint64_t PageCount;
     uint64_t StackBaseVirtualAddress;
     uint64_t StackPageCount;
+    uint64_t KernelStackBaseVirtualAddress;
+    uint64_t KernelStackPageCount;
 }TaskMemoryDefinition ;
 
 typedef struct{
@@ -111,11 +130,18 @@ struct SignalDecriptor{
 };
 
 struct FileDescriptor{
-    char directory[256];
     uint64_t gemfs_index;
     uint8_t flags;
     uint64_t last_point;
     bool used;
+};
+
+enum ChildWaitReasons{
+    CHILD_WAIT_EXIT,
+    CHILD_WAIT_WAIT,
+    CHILD_WAIT_OPEN,
+    CHILD_WAIT_WRITE,
+    CHILD_WAIT_READ
 };
 
 volatile struct Task_S{
@@ -126,11 +152,15 @@ volatile struct Task_S{
     uint8_t UsedTicks; // this is so the scheduler can keep track of how many ticks the program has been running for before switching
     uint8_t ProcessState; // defines how the program is running. e.g. active, asleep, new, ready, blocked.
     uint16_t WaitingReason; // defines why the program is waiting if the state is set to that.
+    enum ChildWaitReasons ChildWaitingReason; // if the task is waiting for a child to do shit, this is why.
     uint32_t SleepCycle; // how many cycles the program has been sleeping, used so the task can request to sleep
     uint32_t RequestedSleepCycle; // the program sets this so it "sleeps"
     uint64_t Base_PML4; // the base PML4 address that will be loaded into CR3
     struct FileDescriptor Descriptors[64];
-    char Current_Working_Directory[256];
+    struct TSS UserTSS;
+    int PID_Waiting_For; // if the Task calls wait() this value is set to the PID it's waiting for.
+    int Owner_PID; // if the task was created through fork, this value is set to the PID that created it.
+    int Working_FD; // whatever is set with setwfd(), usually used for passing a directory to open through a fork.
     bool Exists; // set to true if the task is in existence
 };
 
@@ -152,6 +182,12 @@ volatile struct Task_S{
 struct Physical_Frame{
     uint32_t refcount;
     uint8_t flags;
+};
+
+struct Slab_Cache_Descriptor{
+    void* slab;
+    size_t slab_size;
+    bool used;
 };
 
 typedef struct Task_S Task;
@@ -225,6 +261,8 @@ uint64_t Create_User_Memory();
 uint64_t phys_addr(void* pointer);
 
 uint16_t find_first_present(uint64_t* table);
+
+void* kmalloc(size_t bytes);
 
 extern volatile uint64_t Kernel_PML4_Physical;
 extern volatile uint64_t PML4_Physical;

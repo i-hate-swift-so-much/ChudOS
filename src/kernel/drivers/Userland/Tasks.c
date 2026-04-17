@@ -10,6 +10,62 @@ volatile int cur_pid = 0;
 
 uint8_t Program_Buffer[0x1000];
 
+void DumpTaskState(int pid){
+    volatile Task* cur = (volatile Task*)&TaskManager[pid];
+    InterruptRegisters* regs = &cur->SavedRegisters;
+    printf("  State Dump of task %i\n", pid);
+    printf("RIP=%x:%x RSP=%x:%x\n", regs->cs, regs->rip, regs->ss, regs->rsp);
+    printf("RAX=%x RBX=%x RCX=%x RDX=%x\n", regs->rax, regs->rbx, regs->rcx, regs->rdx);
+}
+
+/**
+ * @brief Gives the lower or upper bound of a page.
+ * @param vaddr The base virtual address of the origin page.
+ * @param page_count How many pages exist in the region.
+ * @param fwd The direction of the region (true = grows up, false = grows down)
+ */
+uint64_t get_mem_low_high(uint64_t vaddr, uint64_t page_count, bool fwd){
+    uint64_t offset = fwd ? 0x1000 : -0x1000;
+    return vaddr+(page_count * offset);
+}
+
+/**
+ * @brief Checks to make sure a memory access from a task is OK by checking its defined regions.
+ * @param vaddr The virtual address the user is attempting to access.
+ * @param pid The PID of the task trying to access the page
+ */
+bool mem_access_ok(uint64_t vaddr, int pid){
+    volatile Task* given_task = (volatile Task*)&TaskManager[pid];
+    volatile TaskMemoryDefinition m = (volatile TaskMemoryDefinition)given_task->MemoryData;
+    bool in_code_region = vaddr > m.BaseVirtualAddress && vaddr < get_mem_low_high(m.BaseVirtualAddress, m.PageCount, true);
+    bool in_stack_region = vaddr < (m.StackBaseVirtualAddress+0x1000) && vaddr > get_mem_low_high(m.StackBaseVirtualAddress, m.StackPageCount, false);
+    bool in_kernel_stack_region = vaddr < (m.KernelStackBaseVirtualAddress+0x1000) && vaddr > get_mem_low_high(m.KernelStackBaseVirtualAddress, m.KernelStackPageCount, false);
+    return in_code_region || in_stack_region || in_kernel_stack_region;
+}
+
+/**
+ * @brief Used to copy n bytes of data from a user side buffer to a kernel side buffer.
+ */
+uint64_t copy_from_user(void* dest, const void* src, size_t n){
+    if(!mem_access_ok((uint64_t)src, cur_pid)) { return n; }
+    memcpy(dest, src, n);
+    return 0;
+}
+
+/**
+ * @brief Used to copy data from a user side null terminated string to a kernel side buffer of length count.
+ */
+uint64_t strcpy_from_user(void* dest, const void* src, size_t count){
+    if(!mem_access_ok((uint64_t)src, cur_pid)) { return 0; }
+    char* cur = (char*)src;
+    char* cdest = (char*)dest;
+    int i = 0;
+    while(*cur != '\0' && i < count){
+        *cdest++ = *cur++;
+        i++;
+    }
+    return i;
+}
 
 void KillTask(int PID){
     TaskManager[PID].ProcessState = KILL_PROCESS_STATE;
@@ -24,10 +80,18 @@ int FindFreePID(){
     return TASK_COUNT+1;
 }
 
+/**
+ * @brief Frees the memory of a task by getting rid of user mappings, switching to the Kernel PML4, and unmapping the user PML4.
+ */
 void free_task_memory(int pid){
+    uint64_t last_pml4 = PML4_Physical;
+    
     // first go through the allocated pages
     TASKMGR_set_current(pid);
-    Task* task = &TaskManager[pid];
+    volatile Task* task = (volatile Task*)&TaskManager[pid];
+    uint64_t task_pml4 = task->Base_PML4;
+
+    mem_set_cr3(task_pml4, false); // switch to user pml4
     volatile uint16_t pdpt_index, pd_index, pt_index = 0;
 
     // then the paging structures
@@ -35,7 +99,7 @@ void free_task_memory(int pid){
     volatile uint64_t* pdpt_virt;
     volatile uint64_t* pd_virt;
     volatile uint64_t* pt_virt;
-    pml4_virt = (volatile uint64_t*)(task->Base_PML4 + VIRTUAL_MEMORY_BARRIER);
+    pml4_virt = (volatile uint64_t*)(task_pml4 + VIRTUAL_MEMORY_BARRIER);
     pdpt_index = find_first_present(pml4_virt);
 
     while(pdpt_index < 256){
@@ -52,8 +116,6 @@ void free_task_memory(int pid){
             pt_index = find_first_present(pd_virt);
             while(pt_index < 512){
                 pt_virt = (volatile uint64_t*)((pd_virt[pt_index] & 0x000FFFFFFFFFF000ULL)+VIRTUAL_MEMORY_BARRIER);
-
-                //printf("%x %x %x | C\n", pt_index, (uint64_t)pt_virt, pd_virt[pt_index] & 0x000FFFFFFFFFF000ULL);
 
                 PageDetails pt_page;
                 pt_page.physical_address = pd_virt[pt_index] & 0x000FFFFFFFFFF000ULL;
@@ -74,6 +136,80 @@ void free_task_memory(int pid){
 
             pd_index = find_first_present(pdpt_virt);
         }
+
+        PageDetails pdpt_page;
+        pdpt_page.physical_address = pml4_virt[pdpt_index] & 0x000FFFFFFFFFF000ULL;
+        pdpt_page.virtual_address = (uint64_t)pdpt_virt;
+        free_page(&pdpt_page);
+
+        memset(&pml4_virt[pdpt_index], 0, 8);
+
+        pdpt_index = find_first_present(pml4_virt);
+    }
+    mem_set_cr3(Kernel_PML4_Physical, false);
+
+    memset(pml4_virt, 0, 0x1000);
+
+    PageDetails pml4_page;
+    pml4_page.physical_address = phys_addr(pml4_virt);
+    pml4_page.virtual_address = (uint64_t)pml4_virt;
+    free_page(&pml4_page);
+
+    if(last_pml4 != task->Base_PML4){
+        mem_set_cr3(last_pml4, false);
+    }
+}
+
+void free_task_memory_by_pml4(uint64_t pml4){
+    uint64_t last_pml4 = PML4_Physical;
+    
+    // first go through the allocated pages
+    mem_set_cr3(pml4, true); // switch to user pml4
+    volatile uint16_t pdpt_index, pd_index, pt_index = 0;
+
+    // then the paging structures
+    volatile uint64_t* pml4_virt;
+    volatile uint64_t* pdpt_virt;
+    volatile uint64_t* pd_virt;
+    volatile uint64_t* pt_virt;
+    pml4_virt = (volatile uint64_t*)(pml4 + VIRTUAL_MEMORY_BARRIER);
+    pdpt_index = find_first_present(pml4_virt);
+
+    while(pdpt_index < 256){
+        pdpt_virt = (volatile uint64_t*)((pml4_virt[pdpt_index] & 0x000FFFFFFFFFF000ULL)+VIRTUAL_MEMORY_BARRIER);
+
+        //printf("%x %x %x | A\n", pdpt_index, (uint64_t)pdpt_virt, pml4_virt[pdpt_index] & 0x000FFFFFFFFFF000ULL);
+        
+        pd_index = find_first_present(pdpt_virt);
+        while(pd_index < 512){
+            pd_virt = (volatile uint64_t*)((pdpt_virt[pd_index] & 0x000FFFFFFFFFF000ULL)+VIRTUAL_MEMORY_BARRIER);
+
+            //printf("%x %x %x | B\n", pd_index, (uint64_t)pd_virt, pdpt_virt[pd_index] & 0x000FFFFFFFFFF000ULL);
+
+            pt_index = find_first_present(pd_virt);
+            while(pt_index < 512){
+                pt_virt = (volatile uint64_t*)((pd_virt[pt_index] & 0x000FFFFFFFFFF000ULL)+VIRTUAL_MEMORY_BARRIER);
+                
+                PageDetails pt_page;
+                pt_page.physical_address = pd_virt[pt_index] & 0x000FFFFFFFFFF000ULL;
+                pt_page.virtual_address = (volatile uint64_t)pt_virt;
+                free_page(&pt_page);
+
+                memset(&pd_virt[pt_index], 0, 8);
+
+                pt_index = find_first_present(pd_virt);
+            }
+
+            PageDetails pd_page;
+            pd_page.physical_address = pdpt_virt[pd_index] & 0x000FFFFFFFFFF000ULL;
+            pd_page.virtual_address = (uint64_t)pd_virt;
+            free_page(&pd_page);
+
+            pdpt_virt[pd_index] = 0;
+
+            pd_index = find_first_present(pdpt_virt);
+        }
+
         PageDetails pdpt_page;
         pdpt_page.physical_address = pml4_virt[pdpt_index] & 0x000FFFFFFFFFF000ULL;
         pdpt_page.virtual_address = (uint64_t)pdpt_virt;
@@ -84,20 +220,80 @@ void free_task_memory(int pid){
         pdpt_index = find_first_present(pml4_virt);
     }
 
+    mem_set_cr3(Kernel_PML4_Physical, false);
+
     memset(pml4_virt, 0, 0x1000);
 
     PageDetails pml4_page;
     pml4_page.physical_address = phys_addr(pml4_virt);
     pml4_page.virtual_address = (uint64_t)pml4_virt;
     free_page(&pml4_page);
+
+    if(last_pml4 != pml4){
+        mem_set_cr3(last_pml4, true);
+    }else{
+        sti();
+    }
 }
 
 /**
- * @brief Sets up the stack for a given task, make sure to set RSP and RSP before calling this
- * @param task The task to set up the stack for
+ * @brief Sets up the stack for a given task, make sure to set RSP and RBP before calling this
+ * @param pid The PID of the task which the stack should be made for
+ * @param argv An array of strings which is placed on the stack as arguments.
+ * @param argc The amount of arguments place on the stack
  */
-int SetupTaskStack(Task* task, uint64_t* args){
+int SetupTaskStack(int pid, char* argv[], int argc){
+   /* 
+    STACK LAYOUT
+    +------------------+
+    |   char* path[]   | // not implemented
+    +------------------+
+    |   char* argv[]   |
+    +------------------+
+    +     int argc     |
+    +------------------+
+    Size is not fixed
+   */
+
+    volatile Task* task = (volatile Task*)&TaskManager[pid];
     
+    uint64_t last_pml4 = PML4_Physical;
+    
+    int last_pid = TASKMGR_get_current();
+    TASKMGR_set_current(pid);
+
+    mem_set_cr3(task->Base_PML4, true);
+    char* stack = (uint8_t*)task->SavedRegisters.rsp;
+
+    uintptr_t argv_pointers[argc + 1];
+ 
+    uintptr_t* argv_data_start = (uintptr_t*)stack;
+
+    for(int i = argc - 1; i >= 0; i--){
+        int len = 0;
+        while (argv[i][len] != '\0') len++;
+
+        for (int j = len; j >= 0; j--) *(--stack) = argv[i][j];
+
+        argv_pointers[i] = (uintptr_t)stack;
+    }
+    argv_pointers[argc] = 0; // null terminator
+
+    for(int i = argc; i >= 0; i--){
+        stack -= sizeof(uintptr_t);
+        *(uint64_t*)stack = argv_pointers[i];
+        //printf("%x | %x\n", (uintptr_t)stack, *(uintptr_t*)stack);
+    }
+    stack-=sizeof(int64_t);
+
+    int64_t* stack_argc = (int64_t*)stack;
+    *stack_argc = (int64_t)argc;
+
+    task->SavedRegisters.rsp = (uint64_t)stack;
+    //halt();
+
+    mem_set_cr3(last_pml4, true);
+    TASKMGR_set_current(last_pid);
 }
 
 /**
@@ -402,6 +598,14 @@ void* LoadElf(uint8_t Drive, uint64_t LBA, size_t Program_Size){
     #ifdef ELF_SANITY
         printf("NUM: %x\n", e_phnum);
     #endif
+    // create the kernel stack
+    TaskManager[next_pid].MemoryData.KernelStackPageCount = 5;
+    malloc(KernelTask);
+    malloc(KernelTask);
+    malloc(KernelTask);
+    malloc(KernelTask);
+    uint64_t kernel_stack = (uint64_t)malloc(KernelTask);
+    TaskManager[next_pid].MemoryData.KernelStackBaseVirtualAddress = kernel_stack;
 
     TASKMGR_set_current(last_pid);
 
@@ -409,6 +613,16 @@ void* LoadElf(uint8_t Drive, uint64_t LBA, size_t Program_Size){
 
     TaskManager[next_pid].MemoryData.StackBaseVirtualAddress = stack_base;
     TaskManager[next_pid].MemoryData.StackPageCount = 1;
+    TaskManager[next_pid].MemoryData.KernelStackPageCount = 5;
+    TaskManager[next_pid].MemoryData.KernelStackBaseVirtualAddress = kernel_stack;
+
+    // set up the TSS
+    memcpy(&TaskManager[next_pid].UserTSS, &KernelTask->UserTSS, sizeof(struct TSS));
+    TaskManager[next_pid].UserTSS.rsp0 = kernel_stack;
+
+    char* argv[] = {"test arg"};
+
+    SetupTaskStack(next_pid, argv, 1); // setup stack
 
     TaskManager[next_pid].ProcessState = READY_PROCESS_STATE;
 
@@ -423,9 +637,9 @@ void* LoadElf(uint8_t Drive, uint64_t LBA, size_t Program_Size){
     * @param LBA The starting LBA of the file
     * @param Program_Size The size (in blocks) of the program
 */
-void* LoadElfStrict(uint8_t Drive, uint64_t LBA, size_t Program_Size, int pid, uint64_t NewPML4){
+void* LoadElfStrict(uint8_t Drive, uint64_t LBA, size_t Program_Size, int pid, uint64_t NewPML4, char* argv[], int argc){
     memset(Program_Buffer, 0, 0x1000);
-    
+
     #ifdef ELF_SANITY
         SetTextColor(LCYAN, BLACK);
         printf("Reading ELF file from drive %i LBA %i with a size of %i\n", Drive, LBA, Program_Size);
@@ -464,7 +678,11 @@ void* LoadElfStrict(uint8_t Drive, uint64_t LBA, size_t Program_Size, int pid, u
     uint64_t stack_base = 0x7FFF0000;
 
     uint64_t PrevPML4 = PML4_Physical;
-    printf("OLD PML4: %x NEW PML4: %x\n", PrevPML4, NewPML4);
+    #ifdef ELF_SANITY
+        SetTextColor(LCYAN, BLACK);
+        printf("OLD PML4: %x NEW PML4: %x\n", PrevPML4, NewPML4);
+        SetTextColor(WHITE, BLACK);
+    #endif
 
     mem_set_cr3(NewPML4, true);
 
@@ -574,12 +792,27 @@ void* LoadElfStrict(uint8_t Drive, uint64_t LBA, size_t Program_Size, int pid, u
         printf("NUM: %x\n", e_phnum);
     #endif
 
+    TaskManager[next_pid].MemoryData.KernelStackPageCount = 5;
+    malloc(KernelTask);
+    malloc(KernelTask);
+    malloc(KernelTask);
+    malloc(KernelTask);
+    uint64_t kernel_stack = (uint64_t)malloc(KernelTask);
+    TaskManager[next_pid].MemoryData.KernelStackBaseVirtualAddress = kernel_stack;
+
     TASKMGR_set_current(last_pid);
 
     RegisterTaskStrict(TaskManager[next_pid].MemoryData.BaseVirtualAddress, elf_header->e_entry, TaskManager[next_pid].MemoryData.PageCount, USER_PRIORITY, stack_base+4080, NewPML4, pid);
     
     TaskManager[next_pid].MemoryData.StackBaseVirtualAddress = stack_base;
     TaskManager[next_pid].MemoryData.StackPageCount = 1;
+    TaskManager[next_pid].MemoryData.KernelStackPageCount = 5;
+    TaskManager[next_pid].MemoryData.KernelStackBaseVirtualAddress = kernel_stack;
+
+    memcpy(&TaskManager[next_pid].UserTSS, &KernelTask->UserTSS, sizeof(struct TSS));
+    TaskManager[next_pid].UserTSS.rsp0 = kernel_stack;
+
+    SetupTaskStack(next_pid, argv, argc);
 
     TaskManager[next_pid].ProcessState = READY_PROCESS_STATE;
 
@@ -588,14 +821,14 @@ void* LoadElfStrict(uint8_t Drive, uint64_t LBA, size_t Program_Size, int pid, u
     return (void*)TaskManager[next_pid].MemoryData.BaseVirtualAddress;
 }
 
-void LoadElfStrict_GemFS(enum GemFS_DriveIDs DriveID, uint8_t Partition, uint64_t Blocks, uint64_t Index, int pid, uint64_t NewPML4){
+void LoadElfStrict_GemFS(enum GemFS_DriveIDs DriveID, uint8_t Partition, uint64_t Blocks, uint64_t Index, int pid, uint64_t NewPML4, char* argv[], int argc){
     struct GemFS_Entry entry = GemFS_ReadEntry(DriveID, Partition, Index);
 
     uint64_t LBA = GemFS_BlockToLBA(DriveID, Partition, entry.Start);
 
     uint64_t BS = Drives[DriveID].Main_Entries[Partition].Block_Size;
 
-    LoadElfStrict(DriveID, LBA, (Blocks*BS)*512, pid, NewPML4);
+    LoadElfStrict(DriveID, LBA, (Blocks*BS)*512, pid, NewPML4, argv, argc);
 }
 
 int TASKMGR_get_current(){
@@ -604,4 +837,16 @@ int TASKMGR_get_current(){
 
 void TASKMGR_set_current(int pid){
     cur_pid = pid;
+}
+
+void SignalOwner(volatile Task* Origin, enum ChildWaitReasons Reason, int ret){
+    //printf("SIGNALLING OWNER (PID %x)\n", Origin->Owner_PID);
+    if(Origin->Owner_PID == 0){ return; }
+    volatile Task* owner = (volatile Task*)&TaskManager[Origin->Owner_PID];
+
+    if(owner->ProcessState == WAITING_PROCESS_STATE && owner->WaitingReason == WAITING_REASON_CHILD && owner->ChildWaitingReason == Reason){
+        owner->SavedRegisters.rax = ret;
+        owner->ProcessState = READY_PROCESS_STATE;
+        owner->WaitingReason = WAITING_REASON_NULL;
+    }
 }

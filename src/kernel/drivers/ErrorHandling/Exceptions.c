@@ -1,6 +1,6 @@
 #include "ErrorHandling/Exceptions.h"
 
-uint8_t CoW_bounce_buffer[0x1000];
+volatile uint8_t CoW_bounce_buffer[0x1000];
 
 InterruptRegisters ErrToInt(InterruptRegistersError regs){
     InterruptRegisters ret;
@@ -30,22 +30,10 @@ InterruptRegisters ErrToInt(InterruptRegistersError regs){
     return ret;
 }
 
-void HandlePageFault(InterruptRegistersError* regs){
-    uint64_t newPhysical = FindNextFreePhysical();
-    if(false){
-        printf("FAULT addr:%x\n", regs->cr2);
-        printf("Process Dump PID=%i\n", TASKMGR_get_current());
-        printf("RAX=%x\nRBX=%x\nRCX=%x\nRDX=%x\n", regs->rax, regs->rbx, regs->rcx, regs->rdx);
-        printf("RIP=%x\n", regs->rip);
-    }
-    uint64_t virtual_address = regs->cr2;
+int pf_count = 0;
 
-    if(virtual_address < 0x1000){
-        asm volatile(
-            "cli\n"
-            "hlt\n"
-        );
-    }
+void HandlePageFault(InterruptRegisters* regs){
+    uint64_t virtual_address = regs->cr2;
 
     uint64_t CR3;
     asm volatile(
@@ -54,57 +42,98 @@ void HandlePageFault(InterruptRegistersError* regs){
         : "=r" (CR3) : :
     );
 
+    int cur_pid = TASKMGR_get_current();
+
+    task_switch_frame(&TaskManager[cur_pid].SavedRegisters, regs);
+
+    uint64_t saved_virt = virtual_address;
+
     virtual_address = virtual_address & ~0xFFF;
 
-    Task* cur_task = &TaskManager[TASKMGR_get_current()];
+    volatile Task* cur_task = (volatile Task*)&TaskManager[cur_pid];
+
+    uint64_t stack_low = (cur_task->MemoryData.StackBaseVirtualAddress - ((cur_task->MemoryData.StackPageCount-1) * 0x1000));
+
+    if(
+        !mem_access_ok(saved_virt, cur_pid) &&
+        virtual_address < (stack_low - 0x4000)
+    ){
+        printf("Kill %i for address %x\n", cur_pid, saved_virt);
+        DumpTaskState(cur_pid);
+        KillTask(cur_pid);
+        SignalOwner(cur_task, CHILD_WAIT_EXIT, -1);
+        free_task_memory(cur_pid);
+        ForceSwitch(regs);
+
+        return;
+    }
 
     if(virtual_address < VIRTUAL_MEMORY_BARRIER){
         mem_set_cr3(cur_task->Base_PML4, false);
-        if(regs->rip < VIRTUAL_MEMORY_BARRIER){
-            // determine if the entry is CoW available.
-            PageEntries entries = ExtractPageEntries(virtual_address);
+        PageEntries entries = ExtractPageEntries(virtual_address);
+        volatile uint64_t* page_data = (volatile uint64_t*)CalculatePagePhysicalEntryAddress(&entries);
 
-            uint64_t* page_data = CalculatePagePhysicalEntryAddress(&entries);
-            // if CoW bit of the page entry is set, and the P and W bits of the error is set, then it should copy.
-            if(*page_data & 1<<9 && regs->error_code & 0b11 == 0b11){
-                // find a free physical, if it doesn't exist kill the task
-                uint64_t phys = FindNextFreePhysical();
-                if(phys > total_mem){
-                    KillTask(TASKMGR_get_current());
-                    InterruptRegisters regs_i = ErrToInt(*regs);
-                    ForceSwitch(&regs_i);
-                    return;
-                }
-                memcpy(CoW_bounce_buffer, (void*)(virtual_address & ~0xFFF), 0x1000);
-                uint16_t flags = (*page_data & 0xFFF) | 0b10 & (~1 << 9); // enable writes and disable CoW
-                uint8_t xd = *page_data >> 63;
-                phys_frames[(*page_data & 0x000FFFFFFFFFF000ULL) / 0x1000].refcount--;
+        // if CoW bit of the page entry is set, and the P and W bits of the error is set, then it should copy.
+        if(*page_data & 1<<9){
+            // find a free physical, if it doesn't exist kill the task
+            uint16_t flags = ((*page_data & 0xFFF) | 0b11) & (~(1 << 9)); // enable writes and disable CoW
+            uint8_t xd = (*page_data) >> 63;
+            if(phys_frames[(*page_data & 0x000FFFFFFFFFF000ULL) / 0x1000].refcount <= 1){
                 *page_data = (
-                    phys | 
+                    (*page_data & 0x000FFFFFFFFFF000ULL) | 
                     (((uint64_t)xd) << 63) | 
                     flags
                 );
-                asm volatile("invlpg (%0)" : : "r" (virtual_address & ~0xFFF) : "memory");
-                memcpy((void*)(virtual_address & ~0xFFF), CoW_bounce_buffer, 0x1000);
+                asm volatile("invlpg (%0)" : : "r" (virtual_address) : "memory");
+            }else{
+                phys_frames[(*page_data & 0x000FFFFFFFFFF000ULL) / 0x1000].refcount--;
+                *page_data = (
+                    (*page_data & 0x000FFFFFFFFFF000ULL) | 
+                    (((uint64_t)xd) << 63) | 
+                    flags
+                );
+                uint64_t newPhysical = FindNextFreePhysical();
+                memcpy(CoW_bounce_buffer, (void*)virtual_address, 0x1000);
+                *page_data = (
+                    newPhysical | 
+                    (((uint64_t)xd) << 63) | 
+                    flags
+                );
+                asm volatile("invlpg (%0)" : : "r" (virtual_address) : "memory");
+                mem_SetBit(newPhysical);
+                barrier();
+                memcpy((void*)virtual_address, CoW_bounce_buffer, 0x1000);
+            }
+        }else{
+            uint64_t newPhysical = FindNextFreePhysical();
+            PageDetails newUser;
+            newUser.flags.flags = USER_FLAGS;
+            newUser.flags.Execute_Disable = false;
+            newUser.physical_address = newPhysical;
+            newUser.virtual_address = virtual_address;
+
+            if(
+                virtual_address >= (stack_low - 0x2000) &&
+                virtual_address <= cur_task->MemoryData.StackBaseVirtualAddress
+            ){
+                uint64_t dist = (stack_low - virtual_address) / 0x1000;
+                
+                newUser.flags.Execute_Disable = true;
+                for(int i = 0; i < dist; i++){
+                    alloc_page(&newUser);
+
+                    newUser.virtual_address+=0x1000;
+                    newUser.physical_address = FindNextFreePhysical();
+
+                    cur_task->MemoryData.StackPageCount++;   
+                }
+            }else{
+                cur_task->MemoryData.PageCount+=1;
+                alloc_page(&newUser);
             }
         }
-        if(regs->cr2 >= cur_task->MemoryData.StackBaseVirtualAddress-0x1000){
-            cur_task->MemoryData.StackBaseVirtualAddress-=0x1000;
-            cur_task->MemoryData.StackPageCount++;
-        }else{
-            cur_task->MemoryData.PageCount+=1;
-        }
-        PageDetails newUser;
-        newUser.flags.flags = USER_FLAGS;
-        newUser.flags.Execute_Disable = false;
-        newUser.physical_address = newPhysical;
-        newUser.virtual_address = virtual_address;
-
-        alloc_page(&newUser);
     }else{
-        #ifdef DEBUG
-            printf("Kernel\n");
-        #endif
+        uint64_t newPhysical = FindNextFreePhysical();
         PageDetails newKernel;
         newKernel.flags.flags = KERNEL_FLAGS;
         newKernel.flags.Execute_Disable = false;
@@ -113,48 +142,31 @@ void HandlePageFault(InterruptRegistersError* regs){
 
         alloc_page(&newKernel);
     }
-    SetTextColor(WHITE, BLACK);
 }
 
 void GeneralProtectionFault(InterruptRegistersError* regs){
     int cur = TASKMGR_get_current();
-    printf("#GF RIP=%x (Task=%i)\n", regs->rip, cur);
 
-    halt();
+    if(cur == 0){
+        printf("FATAL #GF FROM KERNEL");
+        KernelPanic(regs);
+    }
 
     KillTask(cur);
     InterruptRegisters regs_i = ErrToInt(*regs);
     ForceSwitch(&regs_i);
-    return;
-
-    asm(
-        "cli\n"
-        "1:\n\t"
-        "hlt\n"
-        "jmp 1b\n"
-        :::
-    );
-
-    return;
 }
 
 void InvalidOpcode(InterruptRegistersError* regs){
     int cur = TASKMGR_get_current();
-    printf("Invalid opcode at RIP %x (Task %i)\n", regs->rip, cur);
+
+    if(cur == 0){
+        printf("FATAL CORRUPTED OPCODE FROM KERNEL\n");
+        KernelPanic(regs);
+    }
 
     // kill the task that the opcode originated from
     KillTask(cur);
     InterruptRegisters regs_i = ErrToInt(*regs);
     ForceSwitch(&regs_i);
-    return;
-
-    asm volatile(
-        "cli\n"
-        "1:\n\t"
-        "hlt\n"
-        "jmp 1b\n"
-        :::
-    );
-    
-    return;
 }

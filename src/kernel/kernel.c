@@ -7,18 +7,31 @@ void SetUpShell(){
 
     struct GemFS_Entry shell_entry = GemFS_ReadEntry(0, 1, Shell_Entry);
 
-    printf("Shell_Entry: %x\n", shell_entry.Start);
+    printf("Shell_Entry: %i\n", GemFS_BlockToLBA(F0, 1, shell_entry.Start));
 
-    //LoadElf_GemFS(F0, 1, 2, Shell_Entry);
-    LoadElf(F0, 1500, 0);
+    LoadElf_GemFS(F0, 1, 2, Shell_Entry);
+    //LoadElf(F0, 1500, 0);
 
     TASKMGR_set_current(0);
+
+
+    for(int i = 0; i < 4; i++){
+        malloc(KernelTask);
+    }
+    KernelTask->UserTSS.rsp0 = (uint64_t)malloc(KernelTask);
+    KernelTask->Base_PML4 = Kernel_PML4_Physical;
 
     cls();
     
     SetTimerFrequency(1000); // the timer will go off every 1 milisecond
 
-    pic_unmask(0x00);
+    pic_unmask(0x01); // enable keyboard
+
+    pic_unmask(0x00); // enable timer
+    volatile bool wait = true;
+    while(wait){
+
+    }
 }
 
 enum GemFS_DriveIDs correct_bootdrive(uint64_t boot_drive){
@@ -41,6 +54,24 @@ enum GemFS_DriveIDs correct_bootdrive(uint64_t boot_drive){
 void kernel_startup(uint64_t boot_drive){
     cls();
 
+    print("Initializing Modular GDT ", 0);
+    take_print_snapshot();
+
+    // set up the GDT, it's called "modular" because kernel code can safely change it willingly
+    SetGDTEntry(0, 0, 0, 0, 0); // null entry
+    SetGDTEntry(0, 0, GDT_Flags_Code, GDT_Access_Kernel_Code, 0x8); // kernel code
+    SetGDTEntry(0, 0, GDT_Flags_Data, GDT_Access_Kernel_Data, 0x10); // kernel data
+    SetGDTEntry(0, 0, GDT_Flags_Code, GDT_Access_User_Code, 0x18); // user code
+    SetGDTEntry(0, 0, GDT_Flags_Data, GDT_Access_User_Data, 0x20); // user data
+
+    // establish the TSS
+    SetActiveTSS(0xffff800000FFFF00, 0, 0, 0xffff80000003FFF0, 0xffff80000003EFF0, 0xffff80000003DFF0, 0xffff80000003CFF0, 0xffff80000003BFF0, 0xffff80000003AFF0, 0xffff800000039FF0, 0x10000);
+    SetGDTSystemEntry((uint64_t)&ActiveTSS, sizeof(ActiveTSS), GDT_Flags_Data, GDT_Access_TSS, 0x28);
+
+    LoadGDT();
+
+    print_success_snapshot("SUCCESS\n", 0);
+
     boot_drive &= 0xFF;
 
     print("Setting up paging ", 0);
@@ -48,6 +79,8 @@ void kernel_startup(uint64_t boot_drive){
 
     InitMem();
     
+    memcpy(&KernelTask->UserTSS, &ActiveTSS, sizeof(struct TSS));
+
     print_success_snapshot("SUCCESS\n", 0);
     
     print("Loading IDT ", 0);
@@ -61,21 +94,23 @@ void kernel_startup(uint64_t boot_drive){
     #endif
     SetIDTEntry(0x06, (uint64_t)invalid_opcode_stub, 0x08, 0x8E, 0x04);
     SetIDTEntry(0x0D, (uint64_t)gpf_stub, 0x08, 0x8E, 0x04);
-    SetIDTEntry(0x0E, (uint64_t)page_fault_stub, 0x08, 0x8E, 0x05);
-    SetIDTEntry(0x80, (uint64_t)isr80_stub, 0x08, 0xEF, 0x01);
-    SetIDTEntry(0x20, (uint64_t)timer_interrupt_stub, 0x08, 0x8F, 0x02);
+    SetIDTEntry(0x0E, (uint64_t)page_fault_stub, 0x08, 0x8E, 0x00);
+    SetIDTEntry(0x80, (uint64_t)isr80_stub, 0x08, 0xEF, 0x00);
+    SetIDTEntry(0x20, (uint64_t)timer_interrupt_stub, 0x08, 0x8E, 0x00);
     SetIDTEntry(0x28, (uint64_t)sync_time_stub, 0x08, 0x8E, 0x01);
     LoadIDT();
     outb(0x70, 0x8B);
     char previous = inb(0x71);
     outb(0x70, 0x8B);
     outb(0x71, previous | 0x40);
-    SetIDTEntry(0x21, (uint64_t)keyboard_stub, 0x08, 0x8F, 0x00);
+    // entry number, stub, selector, flags, ist
+    SetIDTEntry(0x21, (uint64_t)keyboard_stub, 0x08, 0x8E, 0x00);
     print_success_snapshot("SUCCESS\n", 0);
     
     print("Enabling Interrupts ", 0);
     take_print_snapshot();
     asm volatile("sti" ::: "memory");
+    printf("CR3 %x ", PML4_Physical);
     print_success_snapshot("SUCCESS\n", 0);
 
     enum GemFS_DriveIDs boot_driveid = correct_bootdrive(boot_drive);
@@ -143,17 +178,13 @@ void kernel_startup(uint64_t boot_drive){
 
     char class = 'u';
 
-    GemFS_Directory_to_Index(F0, 1, "/etc");
-
     #if BUILD_CLASS == 0x02
         class = 'r';
     #endif
 
     printf("ChudOS Version %i.%i.%i:%i%c\n", VERSION_MAJOR, VERSION_MINOR, VERSION_PATCH, BUILD, class);
 
-    printf("Mem data: %x\n", available_mem);
-
-    pic_unmask(0x01); // keyboard
+    printf("Mem data: %x\n", available_mem); 
 
     #ifdef TEST_USER
         SetUpShell();

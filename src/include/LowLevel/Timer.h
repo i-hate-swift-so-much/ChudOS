@@ -7,6 +7,7 @@
 #include "Devices/PIC.h"
 #include "Display/VGA.h"
 #include "Userland/Tasks.h"
+#include "LowLevel/GDT.h"
 
 typedef struct{
     uint16_t second;

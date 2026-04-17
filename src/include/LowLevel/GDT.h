@@ -6,61 +6,46 @@
 
 #include "LowLevel/Memory.h"
 
-struct GDTR_S{
+#define GDT_Access_Kernel_Code 0b10011010
+#define GDT_Access_Kernel_Data 0b10010010
+
+#define GDT_Access_User_Code 0b11111010
+#define GDT_Access_User_Data 0b11110010
+
+#define GDT_Access_TSS 0b10001001
+
+#define GDT_Flags_Data 0b0000
+#define GDT_Flags_Code 0b0010
+
+struct GDTR{
     uint16_t limit;
     uint64_t base;
 }__attribute__((packed));
 
-struct GDT_Entry_S{
-    uint16_t limit0;
-    uint16_t base0;
-    uint8_t base1;
+struct GDT_Entry{
+    uint16_t limit;
+    uint16_t base_0;
+    uint8_t base_1;
     uint8_t access;
-    uint8_t flags;
-    uint8_t base2;
+    uint8_t flags_limits;
+    uint8_t base_2;
 }__attribute__((packed));
 
-struct TSS_S{
-    uint32_t reserved0;
-    uint64_t rsp0;
-    uint64_t rsp1;
-    uint64_t rsp2;
-    uint64_t reserved1;
-    uint64_t ist1;
-    uint64_t ist2;
-    uint64_t ist3;
-    uint64_t ist4;
-    uint64_t ist5;
-    uint64_t ist6;
-    uint64_t ist7;
-    uint64_t reserved2;
-    uint16_t reserved3;
-    uint16_t io_map_base;
+struct TSS_GDT{
+    uint16_t limit;
+    uint16_t base_0;
+    uint8_t base_1;
+    uint8_t access;
+    uint8_t flags_limits;
+    uint8_t base_2;
+    uint32_t base_3;
+    uint32_t reserved;
 }__attribute__((packed));
 
-struct TSS_GDT_S{
-    uint16_t limit0;
-    uint16_t base0;
-    uint8_t base1;
-    uint8_t type:4;
-    uint8_t reserved0:1;
-    uint8_t DPL:2;
-    uint8_t present:1;
-    uint8_t limit1:4;
-    uint8_t avl:1;
-    uint8_t reserved1:2;
-    uint8_t granularity:1;
-    uint8_t base2;
-    uint32_t base3;
-    uint32_t reserved2;
-}__attribute__((packed));
+extern volatile struct TSS ActiveTSS;
 
-typedef struct TSS_GDT_S TSS_GDT;
-typedef struct TSS_S TSS;
-
-typedef struct GDT_Entry_S GDT_Entry;
-typedef struct GDTR_S GDTR;
-
-void SetGDTEntry(size_t offset, GDT_Entry entry);
+void SetGDTEntry(uint32_t Base, uint32_t Limit, uint8_t Flags, uint8_t Access, uint16_t Offset);
+void SetGDTSystemEntry(uint64_t Base, uint32_t Limit, uint8_t Flags, uint8_t Access, uint16_t Offset);
+void SetActiveTSS(uint64_t RSP0, uint64_t RSP1, uint64_t RSP2, uint64_t IST1, uint64_t IST2, uint64_t IST3, uint64_t IST4, uint64_t IST5, uint64_t IST6, uint64_t IST7, uint16_t IO_Base);
+void UpdateActiveTSS(struct TSS* NewTSS);
 void LoadGDT();
-void SetupBasicGDT();

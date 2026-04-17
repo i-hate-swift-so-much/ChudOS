@@ -2,9 +2,9 @@
 
 #include "ErrorHandling/KernelPanic.h"
 
-IDTEntry kernel_idt[256];
+volatile IDTEntry kernel_idt[256];
 
-IDTR kernel_idtr_descriptor;
+volatile IDTR kernel_idtr_descriptor;
 
 void LoadIDT(){
     kernel_idtr_descriptor.limit = (16 * 256) - 1;

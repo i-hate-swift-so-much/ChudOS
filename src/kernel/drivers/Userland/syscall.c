@@ -21,12 +21,6 @@ char open_bounce_buffer[256];
 
 uint64_t last_stdout = 0;
 
-uint64_t copy_from_user(void* dest, void* src, size_t bytes){
-    uint64_t phys = phys_addr(src);
-    void* new_src = (void*)(phys+VIRTUAL_MEMORY_BARRIER);
-    memcpy(dest, new_src, bytes);
-}
-
 void handle_syscall(InterruptRegisters* regs){
     uint64_t rax_value = regs->rax;
     uint64_t rbx_value = regs->rbx;
@@ -44,12 +38,20 @@ void handle_syscall(InterruptRegisters* regs){
 
     struct FileDescriptor* descriptor;
 
+    pic_mask(0x00);
+
     switch (rax_value){
-        case 0:
+        case 0x0:{
+            // EXIT
+            // RBX = return code
             KillTask(cur);
+            SignalOwner(cur_task, CHILD_WAIT_EXIT, rbx_value);
+            free_task_memory(cur);
             ForceSwitch(regs);
-            break;
-        case 1:
+            pic_unmask(0x00);
+            return;
+            break;}
+        case 0x01:{
             // OPEN
             // rbx = directory buffer address
             // sets rax to the new descriptor
@@ -60,19 +62,23 @@ void handle_syscall(InterruptRegisters* regs){
             memset(descriptor, 0, sizeof(struct FileDescriptor));
             int len = calculate_string_length((void*)rbx_value);
             if(len == 0){
+                regs->rax = -1;
                 break;
             }
             len++;
             memcpy(open_bounce_buffer, (void*)rbx_value, len);
             if(len > 255){ len = 255; }
-            memcpy(&descriptor->directory, open_bounce_buffer, len);
-            descriptor->directory[len] = '\0';
-            descriptor->used = true;
-            descriptor->flags = 0b0;
-            descriptor->gemfs_index =  GemFS_Directory_to_Index(0, 1, descriptor->directory);
-            regs->rax = (uint64_t)fd;
-            break;
-        case 2:
+            uint64_t index = GemFS_Directory_to_Index(0, 1, open_bounce_buffer);
+            if(index != -1){
+                descriptor->used = true;
+                descriptor->flags = 0b0;
+                descriptor->gemfs_index =  index;
+                regs->rax = (uint64_t)fd;
+            }else{
+                regs->rax = -1;
+            }
+            break;}
+        case 0x02:{
             // WRITE
             // rdx = descriptor
             // rcx = byte count
@@ -91,21 +97,38 @@ void handle_syscall(InterruptRegisters* regs){
                     GemFS_WriteFile(bounce_buffer, (rcx_value/512)+1, F0, 1, descriptor->gemfs_index);
                     break;
             }
-            break;
-        case 3:
+            break;}
+        case 0x03:{
             // READ
             // rdx = descriptor
             // rcx - byte count
             // rbx = buffer address
-            descriptor = &TaskManager[cur].Descriptors[rdx_value];
-            GemFS_ReadFile(0, 1, descriptor->gemfs_index, (void*)bounce_buffer, (rcx_value/512)+1);
-            memcpy((void*)rbx_value, bounce_buffer, rcx_value);
-            break;
-        case 4:
+            switch(rdx_value){
+                case STD_IN_FD:{
+                    // in the case of reading from the standard input, the task will wait until an enter, and the input will be sent directly to the task.
+                    // this is used primarily by SHELL.
+                    TaskManager[cur].ProcessState = WAITING_PROCESS_STATE;
+                    TaskManager[cur].WaitingReason = WAITING_REASON_INPUT;
+
+                    ForceSwitch(regs);
+                    pic_unmask(0x00);
+                    return;
+                    break;
+                }
+                default:{
+                    descriptor = &TaskManager[cur].Descriptors[rdx_value];
+                    if(!descriptor->used){break;}
+                    GemFS_ReadFile(0, 1, descriptor->gemfs_index, (void*)bounce_buffer, (rcx_value/512)+1);
+                    memcpy((void*)rbx_value, bounce_buffer, rcx_value);
+                    break;
+                }
+            }
+            
+            break;}
+        case 0x04:{
             // FORK
             // for parent, return child PID. for child, return 0.
             // uses Copy on write for copying data.
-
             int child_pid = RegisterTask(
                 cur_task->MemoryData.BaseVirtualAddress, 
                 regs->rip,
@@ -114,6 +137,7 @@ void handle_syscall(InterruptRegisters* regs){
                 regs->rbp,
                 cur_task->Base_PML4
             );
+
             volatile Task* child_task = (volatile Task*)&TaskManager[child_pid];
             memcpy((void*)child_task, (void*)cur_task, sizeof(struct Task_S));
             task_switch_frame(&child_task->SavedRegisters, regs);
@@ -122,6 +146,7 @@ void handle_syscall(InterruptRegisters* regs){
             child_task->ProcessState = CREATION_PROCESS_STATE;
             child_task->Exists = true;
             child_task->Base_PML4 = Create_User_Memory();
+            child_task->Owner_PID = cur;
 
             cur_task->SavedRegisters.rax = child_pid;
             regs->rax = child_pid;
@@ -132,7 +157,7 @@ void handle_syscall(InterruptRegisters* regs){
 
             // setup the child pages, mark the parent and child pages to be read only, CoW available, and update the ref count
             for(int i = 0; i < cur_task->MemoryData.PageCount; i++){
-                mem_set_cr3(cur_task->Base_PML4, true);
+                mem_set_cr3(cur_task->Base_PML4, false);
                 TASKMGR_set_current(cur);
                 
                 PageEntries entries = ExtractPageEntries(cur_page);
@@ -140,10 +165,6 @@ void handle_syscall(InterruptRegisters* regs){
 
                 *page_data |= (1 << 9); // CoW
                 *page_data &= ~2; // read only
-                //printf("%b", *page_data);
-
-                mem_set_cr3(child_task->Base_PML4, true);
-                TASKMGR_set_current(child_pid);
 
                 PageDetails page;
                 page.virtual_address = cur_page;
@@ -151,7 +172,8 @@ void handle_syscall(InterruptRegisters* regs){
                 page.flags.flags = *page_data & 0xFFFULL;
                 page.flags.Execute_Disable = false;
 
-                //printf("NEW PAGE: V: %x P: %x F: %b (D)\n", page.virtual_address, page.physical_address, page.flags.flags);
+                mem_set_cr3(child_task->Base_PML4, false);
+                TASKMGR_set_current(child_pid);
 
                 alloc_page(&page);
                 cur_page+=0x1000;
@@ -164,18 +186,14 @@ void handle_syscall(InterruptRegisters* regs){
             //printf("alloc %x stack pages at %x\n", cur_task->MemoryData.StackPageCount, cur_task->MemoryData.StackBaseVirtualAddress);
             // do the same for the stack
             for(int i = 0; i < cur_task->MemoryData.StackPageCount; i++){
-                mem_set_cr3(cur_task->Base_PML4, true);
+                mem_set_cr3(cur_task->Base_PML4, false);
                 TASKMGR_set_current(cur);
                 
-                PageEntries entries = ExtractPageEntries(cur_page);
-                uint64_t* page_data = CalculatePagePhysicalEntryAddress(&entries);
+                volatile PageEntries entries = (volatile PageEntries)ExtractPageEntries(cur_page);
+                volatile uint64_t* page_data = (volatile uint64_t*)CalculatePagePhysicalEntryAddress(&entries);
 
                 *page_data |= (1 << 9); // CoW
                 *page_data &= ~2; // read only
-                //printf("%b", *page_data);
-
-                mem_set_cr3(child_task->Base_PML4, true);
-                TASKMGR_set_current(child_pid);
 
                 PageDetails page;
                 page.virtual_address = cur_page;
@@ -183,52 +201,173 @@ void handle_syscall(InterruptRegisters* regs){
                 page.flags.flags = *page_data & 0xFFFULL;
                 page.flags.Execute_Disable = false;
 
-                //printf("NEW PAGE: V: %x P: %x F: %b (S)\n", page.virtual_address, page.physical_address, page.flags.flags);
+                mem_set_cr3(child_task->Base_PML4, false);
+                TASKMGR_set_current(child_pid);
 
                 alloc_page(&page);
-                cur_page+=0x1000;
+                cur_page-=0x1000;
             }
+
+            mem_set_cr3(cur_task->Base_PML4, false);
+            TASKMGR_set_current(cur);
+            
+            //printf("alloc %x kernel stack pages at %x\n", cur_task->MemoryData.KernelStackPageCount, cur_task->MemoryData.KernelStackBaseVirtualAddress);
+
+            cur_page = cur_task->MemoryData.KernelStackBaseVirtualAddress;
+            
+            for(int i = 0; i < cur_task->MemoryData.KernelStackPageCount; i++){
+                mem_set_cr3(cur_task->Base_PML4, false);
+                TASKMGR_set_current(cur);
+                
+                volatile PageEntries entries = (volatile PageEntries)ExtractPageEntries(cur_page);
+                volatile uint64_t* page_data = (volatile uint64_t*)CalculatePagePhysicalEntryAddress(&entries);
+
+                *page_data |= (1 << 9); // CoW
+                *page_data &= ~2; // read only
+
+                PageDetails page;
+                page.virtual_address = cur_page;
+                page.physical_address = *page_data & 0x000FFFFFFFFFF000ULL;
+                page.flags.flags = *page_data & 0xFFFULL;
+                page.flags.Execute_Disable = false;
+
+                mem_set_cr3(child_task->Base_PML4, false);
+                TASKMGR_set_current(child_pid);
+
+                alloc_page(&page);
+                cur_page-=0x1000;
+            }
+
+            //printf("Child PML4: %x\nParent PML4: %x\n", child_task->Base_PML4, cur_task->Base_PML4);
 
             mem_set_cr3(cur_task->Base_PML4, true);
             TASKMGR_set_current(cur);
 
+            child_task->Owner_PID = cur;
             child_task->ProcessState = READY_PROCESS_STATE;
-            break;
-        case 5:
+            break;}
+        case 0x05:{
             // EXECVE
             // RAX = 0x5
+            // RBX = argv
             // RDX = FILE DESCRIPTOR
+            int owner = cur_task->Owner_PID;
             descriptor = &cur_task->Descriptors[rdx_value];
             if(!descriptor->used){ break; }
             // verify that the file is executable
             struct GemFS_Entry target_entry = GemFS_ReadEntry(F0, 1, descriptor->gemfs_index);
-            printf("Index %x\n", descriptor->gemfs_index);
             if((target_entry.Flags & 0b1000) != 0b1000){ break; }
 
             // if the file is executable, then continue.
+            uint64_t old_pml4 = cur_task->Base_PML4;
             uint64_t new_pml4 = Create_User_Memory();
-            mem_set_cr3(new_pml4, true);
             pic_mask(0x00);
 
-            //printf("new pml4 %x\n", new_pml4);
+            char** argv = (char**)rbx_value;
+            uintptr_t* list = (uintptr_t*)argv;
+            int len = 0;
+            while(list[len++] != 0){}
 
-            PML4_Physical = cur_task->Base_PML4;
+            // copy the given argv from user to kernel space
+            char** kargv;
+            char points[len*sizeof(char*)];
+            copy_from_user(points, (void*)rbx_value, len*sizeof(char*));
 
-            free_task_memory(cur);
+            cur_task->ProcessState = CREATION_PROCESS_STATE;
+            
+            LoadElfStrict_GemFS(F0, 1, 3, descriptor->gemfs_index, TASKMGR_get_current(), new_pml4, (char**)rbx_value, 0);
 
-            printf("task\n");
-
-            PML4_Physical = new_pml4;
-
-            //LoadElfStrict_GemFS(F0, 1, 3, descriptor->gemfs_index, TASKMGR_get_current(), new_pml4);
-            LoadElfStrict(0, 1600, 53, TASKMGR_get_current(), new_pml4);
+            free_task_memory_by_pml4(old_pml4);
 
             memcpy(regs, &cur_task->SavedRegisters, sizeof(InterruptRegisters));
 
+            cur_task->Owner_PID = owner;
+            cur_task->ProcessState = READY_PROCESS_STATE;
+
+            ForceSwitch(regs);
+
             pic_unmask(0x00);
 
+            return;
+        }
+        case 0x06:{
+            //printf("WAIT FROM %x FOR %x REASON %x\n", cur, rbx_value, rdx_value);
+            // WAIT
+            // RBX = PID
+            // RDX = enum ChildWaitingReasons
+            volatile Task* target_task = (volatile Task*)&TaskManager[rbx_value];
+            //printf("no gf");
+            if(target_task->Owner_PID != cur){ break; }
+            cur_task->ProcessState = WAITING_PROCESS_STATE;
+            cur_task->WaitingReason = WAITING_REASON_CHILD;
+            cur_task->ChildWaitingReason = rdx_value;
+            ForceSwitch(regs);
             break;
-    }
+        }
+        case 0x07:{
+            // CLOSE
+            // RDX = file decsriptor
+            cur_task->Descriptors[rdx_value].used = false;
 
+            break;
+        }
+        case 0x0A:{
+            // SETWFD
+            // RAX = 0x0A
+            // RDX = DESCRIPTOR
+            cur_task->Working_FD = rdx_value;
+            break;}
+        case 0x0B:{
+            // GETWFD
+            // RAX = 0x0B
+            // RETURN WITH WFD
+            regs->rax = cur_task->Working_FD;
+            break;}
+        case 0x0C:{
+            // GETDENTS
+            // RAX = 0x0C
+            // RBX = struct dent*
+            // RCX = Buffer length
+            // RDX = File Descriptor
+            if(cur_task->Descriptors[rdx_value].used == false){
+                break;
+            }
+            struct dent cur_dent;
+            struct GemFS_Entry cur_entry = GemFS_ReadEntry(F0, 1, rdx_value);
+            struct dent* user_buffer = (struct dent*)rbx_value;
+            int i = 0;
+            while(i < rcx_value && cur_entry.Sibling_Index != 0){
+                cur_entry = GemFS_ReadEntry(F0, 1, cur_entry.Sibling_Index);
+                memcpy(&cur_dent.Name, &cur_entry.Name, 128);
+                cur_dent.NameLen = 0;
+                while(cur_entry.Name[cur_dent.NameLen++] != 0){}
+                cur_dent.Flags = cur_entry.Flags;
+                memcpy(&cur_dent, &user_buffer[i], sizeof(struct dent));
+                i++;
+            }
+            regs->rax = i;
+            break;
+        }
+        case 0x0D:{
+            // SYSINFO
+            // RAX = 0x0D
+            // RBX = Pointer to struct sysinfo
+            struct sysinfo* user_info = (struct sysinfo*)rbx_value;
+            struct sysinfo main_info;
+
+            main_info.sys_mem_total = total_mem;
+            main_info.sys_mem_avl = available_mem - (PhysicalPagesUsed*0x1000);
+            main_info.sys_mem_used = PhysicalPagesUsed*0x1000;
+            main_info.your_mem_size = cur_task->MemoryData.PageCount;
+            main_info.your_mem_size += cur_task->MemoryData.StackPageCount;
+            main_info.your_mem_size += cur_task->MemoryData.KernelStackPageCount;
+            main_info.your_mem_size *= 0x1000;
+
+            memcpy(user_info, &main_info, sizeof(struct sysinfo));
+
+            break;
+        }
+    }
     task_switch_frame(&TaskManager[cur].SavedRegisters, regs);
+    pic_unmask(0x00);
 }

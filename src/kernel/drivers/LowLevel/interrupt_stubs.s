@@ -66,7 +66,6 @@
         jne 2f
         1:
                 // from kernel, shift the interrupt frame by 3 quads and set RSP and SS
-
                 pushq $0x10
                 pushq %rsp
                 pushq 32(%rsp) // rflags
@@ -74,8 +73,22 @@
                 pushq 32(%rsp) // rip
                 jmp 3f
         2:
+                // layout after correction
+                // 0x00(%rsp) = rip
+                // 0x08(%rsp) = cs
+                // 0x10(%rsp) = rflags
+                // 0x18(%rsp) = rsp
+                // 0x20(%rsp) = ss
+                // 0x28(%rsp) = rax
+                // 0x30(%rsp) = rip
+                // 0x38(%rsp) = cs
+                // 0x40(%rsp) = rflags
+
                 popq %rax
+                jmp 4f
         3:
+                movq 0x28(%rsp), %rax
+        4:
 .endm
 
 .macro check_cpl_err
@@ -94,20 +107,32 @@
                 pushq 40(%rsp) // rflags
                 pushq 40(%rsp) // cs
                 pushq 40(%rsp) // rip
-                pushq 40(%rsp)
+                pushq 40(%rsp) // err
                 jmp 3f
         2:
+                // layout after correction
+                // 0x00(%rsp) = err
+                // 0x08(%rsp) = rip
+                // 0x10(%rsp) = cs
+                // 0x18(%rsp) = rflags
+                // 0x20(%rsp) = rsp
+                // 0x28(%rsp) = ss
+                // 0x30(%rsp) = rax
+
                 popq %rax
+                jmp 4f
         3:
+                movq 0x30(%rsp), %rax
+        4:
 .endm
 
 
 isr80_stub:
         check_cpl
 
-        push_regs
+        pushq $0x00
 
-        sti
+        push_regs
 
         movq %cr2, %rax
         push %rax
@@ -118,9 +143,11 @@ isr80_stub:
 
         callq handle_syscall
 
-        add $16, %rsp
+        addq $16, %rsp
 
         pop_regs
+
+        addq $8, %rsp
         
         iretq
 
@@ -143,7 +170,7 @@ kernel_panic_stub:
 
         pop_regs // pop general registers
 
-         // properly restore stack, ignore dummy values if pushed
+        // properly restore stack, ignore dummy values if pushed
 
         add $8, %rsp // skip error code
 
@@ -202,10 +229,6 @@ gpf_stub:
         iretq
 
 page_fault_stub:
-        cld
-        
-        cli
-
         check_cpl_err
 
         push_regs
@@ -224,12 +247,12 @@ page_fault_stub:
 
         addq $8, %rsp // skip the error code
 
-        sti
-
         iretq
 
 timer_interrupt_stub:
         check_cpl
+
+        pushq $0x00
 
         push_regs
 
@@ -241,9 +264,11 @@ timer_interrupt_stub:
         movq %rsp, %rdi
         callq TimerInterrupt
 
-        add $16, %rsp
+        addq $16, %rsp
 
         pop_regs
+
+        addq $8, %rsp
 
         iretq
 
@@ -271,12 +296,14 @@ sync_time_stub:
 keyboard_stub:
         check_cpl
 
+        pushq $0x00
+
         push_regs
 
         movq %cr2, %rax
         pushq %rax
 
-        pushq $0x01
+        pushq $0x00
 
         movq %rsp, %rdi
         callq HandleKeyboardInterrupt
@@ -284,6 +311,8 @@ keyboard_stub:
         add $16, %rsp
 
         pop_regs
+
+        addq $8, %rsp;
 
         iretq
 
@@ -315,6 +344,8 @@ floppy_drive_stub:
 
         check_cpl
 
+        pushq $0x00
+
         push_regs
 
         movq %cr2, %rax
@@ -325,11 +356,11 @@ floppy_drive_stub:
         movq %rsp, %rdi
         callq FLOPPY_IRQ
 
-        add $16, %rsp
+        addq $16, %rsp
 
         pop_regs
 
-        
+        addq $8, %rsp
 
         iretq
 
