@@ -117,3 +117,6 @@ void KillTask(int PID);
 
 void LoadElf_GemFS(enum GemFS_DriveIDs DriveID, uint8_t Partition, uint64_t Blocks, uint64_t Index);
 void LoadElfStrict_GemFS(enum GemFS_DriveIDs DriveID, uint8_t Partition, uint64_t Blocks, uint64_t Index, int pid, uint64_t NewPML4, char* argv[], int argc);
+
+void TaskStack_Push(int pid, uint64_t value, bool setcr3);
+uint64_t TaskStack_Pop(int pid, bool setcr3);

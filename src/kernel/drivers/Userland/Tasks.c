@@ -16,6 +16,7 @@ void DumpTaskState(int pid){
     printf("  State Dump of task %i\n", pid);
     printf("RIP=%x:%x RSP=%x:%x\n", regs->cs, regs->rip, regs->ss, regs->rsp);
     printf("RAX=%x RBX=%x RCX=%x RDX=%x\n", regs->rax, regs->rbx, regs->rcx, regs->rdx);
+    printf("STATE=%x MAXT=%i USEDT=%i\n", cur->ProcessState, cur->MaxTicks, cur->UsedTicks);
 }
 
 /**
@@ -849,4 +850,44 @@ void SignalOwner(volatile Task* Origin, enum ChildWaitReasons Reason, int ret){
         owner->ProcessState = READY_PROCESS_STATE;
         owner->WaitingReason = WAITING_REASON_NULL;
     }
+}
+
+void TaskStack_Push(int pid, uint64_t value, bool setcr3){
+    volatile Task* given = (volatile Task*) &TaskManager[pid];
+    if(!given->Exists){ return; }
+    given->SavedRegisters.rsp-=8;
+    volatile uint64_t last = PML4_Physical;
+
+    if(setcr3){
+        mem_set_cr3(given->Base_PML4, true);
+    }
+
+    uint64_t* where = (uint64_t*)given->SavedRegisters.rsp;
+    *where = value;
+
+    if(setcr3){
+        mem_set_cr3(last, true);
+    }
+
+    //printf("PUSH GIVEN PID: %i RSP: %x VAL: %x\n", pid, given->SavedRegisters.rsp, value);
+}
+
+uint64_t TaskStack_Pop(int pid, bool setcr3){
+    volatile Task* given = (volatile Task*) &TaskManager[pid];
+    if(!given->Exists){ return 0; }
+    volatile uint64_t last = PML4_Physical;
+    
+    if(setcr3){
+        mem_set_cr3(given->Base_PML4, true);
+    }
+
+    uint64_t* ret = (uint64_t*)given->SavedRegisters.rsp;
+    //printf("POP GIVEN PID: %i RSP: %x VAL: %x\n", pid, given->SavedRegisters.rsp, *ret);
+    given->SavedRegisters.rsp+=8;
+
+    if(setcr3){
+        mem_set_cr3(last, true);
+    }
+
+    return *ret;
 }

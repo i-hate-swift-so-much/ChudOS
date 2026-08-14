@@ -22,9 +22,10 @@ void task_switch_frame(InterruptRegisters* dest, InterruptRegisters* src){
 void task_switch(int pid, InterruptRegisters* frame){
     barrier();
     int cur = TASKMGR_get_current();
-    Task* old_task = &TaskManager[cur];
+    volatile Task* old_task = (volatile Task*)&TaskManager[cur];
+    task_switch_frame(&old_task->SavedRegisters, frame);
 
-    Task* task = &TaskManager[pid];
+    volatile Task* task = (volatile Task*)&TaskManager[pid];
     
     TASKMGR_set_current(pid);
 
@@ -89,7 +90,7 @@ void EnableTasks(){
     barrier();
 }
 
-void TimerInterrupt(InterruptRegisters* frame){    
+void TimerInterrupt(InterruptRegisters* frame){  
     TimerWindow++;
 
     int cur_pid = TASKMGR_get_current();

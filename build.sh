@@ -3,8 +3,8 @@ rm -rf qemu.log
 
 stty -echo
 
-version_patch="5"
-version_minor="1"
+version_patch="0"
+version_minor="2"
 version_major="0"
 
 build_count_file="build.txt"
@@ -42,7 +42,7 @@ echo "$new_build_count" > "$build_count_file.tmp" && mv "$build_count_file.tmp" 
 for arg in "$@"; do
     if [[ "$arg" == "all" ]]; then
         has_all= 1
-    elif [[ "$arg" == "-s" && $silent_flag_set == 0 ]]; then
+    elif [[ "$arg" == "silent" || "$arg" == "-s" && $silent_flag_set == 0 ]]; then
         set +x
         args+=" -s"
         silent_flag_set=1

@@ -125,8 +125,13 @@ typedef struct{
     uint16_t Page_Offset;
 }PageEntries ;
 
-struct SignalDecriptor{
+enum SignalIdentifiers{
+    SIGCHD
+};
 
+struct SignalDecriptor{
+    bool registered;
+    uint64_t entry;
 };
 
 struct FileDescriptor{
@@ -161,6 +166,7 @@ volatile struct Task_S{
     int PID_Waiting_For; // if the Task calls wait() this value is set to the PID it's waiting for.
     int Owner_PID; // if the task was created through fork, this value is set to the PID that created it.
     int Working_FD; // whatever is set with setwfd(), usually used for passing a directory to open through a fork.
+    struct SignalDecriptor Signals[16];
     bool Exists; // set to true if the task is in existence
 };
 

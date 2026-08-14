@@ -44,8 +44,11 @@ void handle_syscall(InterruptRegisters* regs){
         case 0x0:{
             // EXIT
             // RBX = return code
+            if(cur_task->Owner_PID != 0){
+                SendSignal(cur_task->Owner_PID, SIGCHD, 0x00, rbx_value, 0x00, 0x00);
+            }
             KillTask(cur);
-            SignalOwner(cur_task, CHILD_WAIT_EXIT, rbx_value);
+            //SignalOwner(cur_task, CHILD_WAIT_EXIT, rbx_value); // legacy
             free_task_memory(cur);
             ForceSwitch(regs);
             pic_unmask(0x00);
@@ -213,30 +216,17 @@ void handle_syscall(InterruptRegisters* regs){
             
             //printf("alloc %x kernel stack pages at %x\n", cur_task->MemoryData.KernelStackPageCount, cur_task->MemoryData.KernelStackBaseVirtualAddress);
 
-            cur_page = cur_task->MemoryData.KernelStackBaseVirtualAddress;
-            
-            for(int i = 0; i < cur_task->MemoryData.KernelStackPageCount; i++){
-                mem_set_cr3(cur_task->Base_PML4, false);
-                TASKMGR_set_current(cur);
-                
-                volatile PageEntries entries = (volatile PageEntries)ExtractPageEntries(cur_page);
-                volatile uint64_t* page_data = (volatile uint64_t*)CalculatePagePhysicalEntryAddress(&entries);
+            //create a new kernel stack for the child.
+            child_task->MemoryData.KernelStackPageCount = 5;
+            malloc(KernelTask);
+            malloc(KernelTask);
+            malloc(KernelTask);
+            malloc(KernelTask);
+            uint64_t kernel_stack = (uint64_t)malloc(KernelTask);
+            child_task->MemoryData.KernelStackBaseVirtualAddress = kernel_stack;
 
-                *page_data |= (1 << 9); // CoW
-                *page_data &= ~2; // read only
-
-                PageDetails page;
-                page.virtual_address = cur_page;
-                page.physical_address = *page_data & 0x000FFFFFFFFFF000ULL;
-                page.flags.flags = *page_data & 0xFFFULL;
-                page.flags.Execute_Disable = false;
-
-                mem_set_cr3(child_task->Base_PML4, false);
-                TASKMGR_set_current(child_pid);
-
-                alloc_page(&page);
-                cur_page-=0x1000;
-            }
+            child_task->MemoryData.KernelStackPageCount = 5;
+            child_task->MemoryData.KernelStackBaseVirtualAddress = kernel_stack;
 
             //printf("Child PML4: %x\nParent PML4: %x\n", child_task->Base_PML4, cur_task->Base_PML4);
 
@@ -245,6 +235,7 @@ void handle_syscall(InterruptRegisters* regs){
 
             child_task->Owner_PID = cur;
             child_task->ProcessState = READY_PROCESS_STATE;
+            //DumpTaskState(child_pid);
             break;}
         case 0x05:{
             // EXECVE
@@ -364,6 +355,29 @@ void handle_syscall(InterruptRegisters* regs){
             main_info.your_mem_size *= 0x1000;
 
             memcpy(user_info, &main_info, sizeof(struct sysinfo));
+
+            break;
+        }
+        case 0x0E:{
+            // sigreg
+            // RAX = 0x0E
+            // RBX = IDENT
+            // RCX = ENTRY
+
+            RegisterSignal(cur, rbx_value, rcx_value);
+
+            //printf("Task %i registered signal %x at %x\n", cur, rbx_value, rcx_value);
+
+            break;
+        }
+        case 0x0F:{
+            // sigret
+            // RAX = 0x0F
+
+            SignalReturn(cur);
+
+            //printf("Task %i returned from signal\n", cur);
+            task_switch_frame(regs, &TaskManager[cur].SavedRegisters);
 
             break;
         }

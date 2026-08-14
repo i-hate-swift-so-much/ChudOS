@@ -63,6 +63,8 @@ void GemFS_FormatPartition(enum GemFS_DriveIDs DriveID, uint8_t Partition){
         |--- bin/
         |    |
         |    +--- shell.elf
+        |    +--- hello_world.elf
+        |    +--- chudedit.elf
     */
     uint64_t dev_entry = GemFS_mkdir(DriveID, Partition, "dev", 4, 0b00010111, 0);
     GemFS_mkdir(DriveID, Partition, "zero", 5, 0b00010111, 1);
@@ -79,6 +81,12 @@ void GemFS_FormatPartition(enum GemFS_DriveIDs DriveID, uint8_t Partition){
     struct GemFS_Entry hentry = GemFS_ReadEntry(DriveID, Partition, hello_entry);
     hentry.Start = GemFS_LBAToBlock(DriveID, Partition, 1600);
     GemFS_WriteEntry(F0, Partition, hello_entry, hentry);
+
+    uint64_t chudedit_entry = GemFS_CreateFile(DriveID, Partition, "chudedit.elf", 12, 0b00001111, bin_entry, 9);
+    struct GemFS_Entry ceentry = GemFS_ReadEntry(DriveID, Partition, chudedit_entry);
+    ceentry.Start = GemFS_LBAToBlock(DriveID, Partition, 1800);
+    GemFS_WriteEntry(F0, Partition, chudedit_entry, ceentry);
+
     int i = 0;
     int last_i = 0;
 

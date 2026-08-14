@@ -3,8 +3,10 @@
 #include "Libraries/std.h"
 #include "Display/VGA.h"
 #include "LowLevel/IDT.h"
-#include "Tasks.h"
+#include "Userland/Tasks.h"
 #include "LowLevel/Timer.h"
+#include "Userland/signals.h"
+#include "Userland/wrappers.h"
 
 #include <stdint.h>
 
