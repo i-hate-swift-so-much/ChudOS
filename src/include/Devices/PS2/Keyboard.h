@@ -9,6 +9,8 @@
 #include "LowLevel/IDT.h"
 #include "stdint.h"
 
+#include "Userland/terminal.h"
+
 #include "Userland/Tasks.h"
 
 extern bool should_proceed;

@@ -7,6 +7,7 @@
 #include "LowLevel/Timer.h"
 #include "Userland/signals.h"
 #include "Userland/wrappers.h"
+#include "Userland/terminal.h"
 
 #include <stdint.h>
 

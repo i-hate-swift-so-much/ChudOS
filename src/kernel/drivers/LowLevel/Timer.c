@@ -112,6 +112,7 @@ void TimerInterrupt(InterruptRegisters* frame){
         if(cur_task->ProcessState == KILL_PROCESS_STATE){
             cur_task->ProcessState = NULL_PROCESS_STATE;
             cur_task->Exists = false;
+            free_task_memory(cur_pid);
         }
         int next_pid = find_next_task(cur_pid);
 

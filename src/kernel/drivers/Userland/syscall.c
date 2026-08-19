@@ -44,12 +44,13 @@ void handle_syscall(InterruptRegisters* regs){
         case 0x0:{
             // EXIT
             // RBX = return code
+            virtualprint(KERNEL_T, "[syscall] exit\n");
+
             if(cur_task->Owner_PID != 0){
                 SendSignal(cur_task->Owner_PID, SIGCHD, 0x00, rbx_value, 0x00, 0x00);
             }
             KillTask(cur);
             //SignalOwner(cur_task, CHILD_WAIT_EXIT, rbx_value); // legacy
-            free_task_memory(cur);
             ForceSwitch(regs);
             pic_unmask(0x00);
             return;
@@ -92,6 +93,7 @@ void handle_syscall(InterruptRegisters* regs){
                     memset(bounce_buffer, 0, 0x1000);
                     memcpy(bounce_buffer, (void*)rbx_value, rcx_value);
                     print(bounce_buffer, rcx_value);
+                    virtualprint(BASIC_T, bounce_buffer); 
                     break;
                 default:
                     descriptor = &TaskManager[cur].Descriptors[rdx_value];
@@ -132,6 +134,7 @@ void handle_syscall(InterruptRegisters* regs){
             // FORK
             // for parent, return child PID. for child, return 0.
             // uses Copy on write for copying data.
+            virtualprint(KERNEL_T, "[syscall] fork\n");
             int child_pid = RegisterTask(
                 cur_task->MemoryData.BaseVirtualAddress, 
                 regs->rip,
@@ -236,12 +239,14 @@ void handle_syscall(InterruptRegisters* regs){
             child_task->Owner_PID = cur;
             child_task->ProcessState = READY_PROCESS_STATE;
             //DumpTaskState(child_pid);
+            virtualprint(KERNEL_T, "[syscall] fork end\n");
             break;}
         case 0x05:{
             // EXECVE
             // RAX = 0x5
             // RBX = argv
             // RDX = FILE DESCRIPTOR
+            virtualprint(KERNEL_T, "[syscall] execve\n");
             int owner = cur_task->Owner_PID;
             descriptor = &cur_task->Descriptors[rdx_value];
             if(!descriptor->used){ break; }
@@ -286,6 +291,7 @@ void handle_syscall(InterruptRegisters* regs){
             // WAIT
             // RBX = PID
             // RDX = enum ChildWaitingReasons
+            //virtualprint(KERNEL_T, "[syscall] wait\n");
             volatile Task* target_task = (volatile Task*)&TaskManager[rbx_value];
             //printf("no gf");
             if(target_task->Owner_PID != cur){ break; }
@@ -298,6 +304,7 @@ void handle_syscall(InterruptRegisters* regs){
         case 0x07:{
             // CLOSE
             // RDX = file decsriptor
+            //virtualprint(KERNEL_T, "[syscall] close\n");
             cur_task->Descriptors[rdx_value].used = false;
 
             break;
@@ -306,12 +313,14 @@ void handle_syscall(InterruptRegisters* regs){
             // SETWFD
             // RAX = 0x0A
             // RDX = DESCRIPTOR
+            //virtualprint(KERNEL_T, "[syscall] setfwd\n");
             cur_task->Working_FD = rdx_value;
             break;}
         case 0x0B:{
             // GETWFD
             // RAX = 0x0B
             // RETURN WITH WFD
+            //virtualprint(KERNEL_T, "[syscall] getfwd\n");
             regs->rax = cur_task->Working_FD;
             break;}
         case 0x0C:{
@@ -320,6 +329,7 @@ void handle_syscall(InterruptRegisters* regs){
             // RBX = struct dent*
             // RCX = Buffer length
             // RDX = File Descriptor
+            //virtualprint(KERNEL_T, "[syscall] getdents\n");
             if(cur_task->Descriptors[rdx_value].used == false){
                 break;
             }
@@ -343,6 +353,7 @@ void handle_syscall(InterruptRegisters* regs){
             // SYSINFO
             // RAX = 0x0D
             // RBX = Pointer to struct sysinfo
+            //virtualprint(KERNEL_T, "[syscall] sysinfo\n");
             struct sysinfo* user_info = (struct sysinfo*)rbx_value;
             struct sysinfo main_info;
 
@@ -364,6 +375,7 @@ void handle_syscall(InterruptRegisters* regs){
             // RBX = IDENT
             // RCX = ENTRY
 
+            //virtualprint(KERNEL_T, "[syscall] sigreg\n");
             RegisterSignal(cur, rbx_value, rcx_value);
 
             //printf("Task %i registered signal %x at %x\n", cur, rbx_value, rcx_value);
@@ -374,6 +386,7 @@ void handle_syscall(InterruptRegisters* regs){
             // sigret
             // RAX = 0x0F
 
+            //virtualprint(KERNEL_T, "[syscall] sigret\n");
             SignalReturn(cur);
 
             //printf("Task %i returned from signal\n", cur);

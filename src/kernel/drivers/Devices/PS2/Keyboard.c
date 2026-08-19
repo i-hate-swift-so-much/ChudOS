@@ -98,12 +98,14 @@ void HandleKeyboardInterrupt(InterruptRegisters* regs){
             int pid = GetWaitingProgram();
             if(KeycodeIsPrintable(Keycode)){
                 char to_print = KeyCode_To_Char(Keycode);
-                if(to_print == '\b' && key_buffer_pos > 0){ key_buffer_pos--; print("\b", 1); } else
+                if(to_print == '\b' && key_buffer_pos > 0){ key_buffer_pos--; virtualprint(BASIC_T, "\b"); } else
                 if(to_print == '\t' && key_buffer_pos < 252){ memset(&key_buffer[key_buffer_pos+1], ' ', 4); key_buffer_pos+=4; print("\t", 1); } 
                 else if(key_buffer_pos < 256){
                     key_buffer[key_buffer_pos] = to_print;
                     key_buffer_pos++;
-                    print(&to_print, 1);
+                    //print(&to_print, 1);
+                    char print[2] = {to_print, '\0'};
+                    virtualprint(BASIC_T, print);
                 }
             }else if(Keycode == ENTER){
                 if(pid == 512){

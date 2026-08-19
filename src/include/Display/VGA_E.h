@@ -66,4 +66,4 @@ struct VESA_ModeInfoBlock{
 
 uint8_t VGA_Read_Index(uint8_t index);
 
-void VGA_E_INIT();
+void VGA_E_INIT(int x, int y);

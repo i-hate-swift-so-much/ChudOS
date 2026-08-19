@@ -22,6 +22,10 @@
 #define YELLOW 0xE
 #define WHITE 0xF
 
+#define VGA_WIDTH 80
+#define VGA_HEIGHT 25
+#define VGA_ADDRESS 0xB8000 + 0xFFFF800000000000 // account for the higher half
+
 extern uint8_t VGA_CUR_COLOR;
 
 struct VGA_Queue_Character_S{

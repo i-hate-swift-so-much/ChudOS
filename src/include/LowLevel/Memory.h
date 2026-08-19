@@ -115,6 +115,7 @@ typedef volatile struct{
     uint64_t StackPageCount;
     uint64_t KernelStackBaseVirtualAddress;
     uint64_t KernelStackPageCount;
+    uint64_t HeapVirtualAddress;
 }TaskMemoryDefinition ;
 
 typedef struct{
@@ -197,6 +198,12 @@ struct Slab_Cache_Descriptor{
 };
 
 typedef struct Task_S Task;
+
+struct mallocMetadata{
+    size_t size;
+    bool available;
+    void* nextSlab;
+};
 
 // for allocating new memory
 struct PageTable{

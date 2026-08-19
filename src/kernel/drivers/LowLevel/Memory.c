@@ -3,7 +3,7 @@
 #include "Libraries/Math.h"
 #include "LowLevel/Timer.h"
 
-// The physical address of the start of the PML4 table, loaded by init_mem from CR3
+// The address of the start of the PML4 table, loaded by init_mem from CR3
 volatile uint64_t Kernel_PML4_Physical = 0;
 volatile uint64_t PML4_Physical = 0;
 
@@ -765,4 +765,50 @@ void* kmalloc(size_t bytes){
 
 void kfree(uint64_t slab_addr){
     slab_addr &= ~0xFFF;
+}
+
+void* userMalloc(int pid, size_t bytes){
+    volatile Task* task = (volatile Task*)&TaskManager[pid];
+
+    // search for where the next block should be placed, or if one can be used
+    bool canUse = false;
+    void* addr = (void*)task->MemoryData.HeapVirtualAddress;
+    bool makeNew = false;
+    while(canUse == false){
+        struct mallocMetadata* curData = (struct mallocMetadata*)addr;
+        if(curData->available == true && curData->size >= bytes+sizeof(struct mallocMetadata)){
+            canUse = true;
+        }
+        else if (curData->nextSlab == 0){
+            makeNew = true;
+        }
+        addr = curData + curData->size;
+    }
+
+    struct mallocMetadata* data = (struct mallocMetadata*)addr;
+    int truebytes = bytes + sizeof(struct mallocMetadata);
+    int pagecount = truebytes / 0x1000; if(truebytes % 0x1000 > 0){ pagecount += 1; }
+    if(makeNew){
+        data->size = truebytes;
+        PageDetails details;
+        details.virtual_address = (uint64_t)data;
+        for(int i = 0; i < pagecount; i++){ 
+            details.physical_address = FindNextFreePhysical();
+            details.flags.flags = USER_FLAGS;
+            details.flags.Execute_Disable = true;
+            
+            alloc_page(&details);
+            task->MemoryData.PageCount+=1;
+
+            details.virtual_address += 0x1000;
+        }
+    }
+    data->available = false;
+
+    return data+sizeof(struct mallocMetadata);
+}
+
+void userFree(int pid, void* address){
+    volatile Task* task = (volatile Task*)&TaskManager[pid];
+    if(mem_access_ok((uint64_t)address, pid));
 }

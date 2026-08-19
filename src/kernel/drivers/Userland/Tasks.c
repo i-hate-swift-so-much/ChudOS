@@ -599,6 +599,7 @@ void* LoadElf(uint8_t Drive, uint64_t LBA, size_t Program_Size){
     #ifdef ELF_SANITY
         printf("NUM: %x\n", e_phnum);
     #endif
+    TaskManager[next_pid].MemoryData.HeapVirtualAddress = TaskManager[next_pid].MemoryData.BaseVirtualAddress + (TaskManager[next_pid].MemoryData.PageCount*0x1000);
     // create the kernel stack
     TaskManager[next_pid].MemoryData.KernelStackPageCount = 5;
     malloc(KernelTask);
