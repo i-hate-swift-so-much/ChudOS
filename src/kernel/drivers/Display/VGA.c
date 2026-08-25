@@ -1,7 +1,7 @@
 #include "Display/VGA.h"
 #include "stdbool.h"
 
-uint8_t* vga_buffer = (uint8_t*)VGA_ADDRESS;
+uint8_t* vga_buffer;
 
 uint8_t VGA_CUR_COLOR = 0x0F;
 
@@ -11,6 +11,10 @@ size_t calculate_string_length(const char* str) {
         length++;
     }
     return length;
+}
+
+void initVGA(){
+    vga_buffer = (uint8_t*)VGA_ADDRESS;
 }
 
 void SetTextColor(uint8_t foreground, uint8_t background){

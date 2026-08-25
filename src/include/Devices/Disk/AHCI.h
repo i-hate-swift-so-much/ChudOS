@@ -5,6 +5,8 @@
 #include "LowLevel/Timer.h"
 #include "LowLevel/IDT.h"
 
+#include "stdbool.h"
+
 // real coding for this driver started
 // dec 29, 2025.
 // note to self, AHCI specification includes 
@@ -19,14 +21,31 @@
 // called FIS (Frame Information Structure) which is
 
 // types of FIS packets, defined by their sizes
-#define FIS_TYPE_REG_H2D 0x27 // register host to device, used for transferring the shadow registers to the device. this is how ATA commands are issued
-#define FIS_TYPE_REG_D2H 0x34 // register device to host, used for responding to H2D's
-#define FIS_TYPE_DMA_ACT 0x36 // DMA activate, device to host
-#define FIS_TYPE_DMA_SETUP 0x41 // DMA setup, bidirectional
-#define FIS_TYPE_DATA 0x46 // Data FIS, bidirectional
-#define FIS_TYPE_BIST 0x58 // Built in Self Test FIS, bidirectional
-#define FIS_TYPE_PIO_SETUP 0x5F // PIO setup, device to host
-#define FIS_TYPE_DEV_BITS 0xA1 // Set device bits, device to host
+typedef enum{
+    FIS_TYPE_REG_H2D =      0x27,  // register host to device, used for transferring the shadow registers to the device. this is how ATA commands are issued
+    FIS_TYPE_REG_D2H =      0x34,  // register device to host, used for responding to H2D's
+    FIS_TYPE_DMA_ACT =      0x36,  // DMA activate, device to host
+    FIS_TYPE_DMA_SETUP =    0x41,  // DMA setup, bidirectional
+    FIS_TYPE_DATA =         0x46,  // Data FIS, bidirectional
+    FIS_TYPE_BIST =         0x58,  // Built in Self Test FIS, bidirectional
+    FIS_TYPE_PIO_SETUP =    0x5F,  // PIO setup, device to host
+    FIS_TYPE_DEV_BITS =     0xA1   // Set device bits, device to host
+}FIS_TYPE;
+
+typedef enum{
+    NOP = 0x0,
+    CFA_REQ_EXT_ERRC = 0x3,
+    DATA_MAN = 0x6,
+    DATA_MAN_XL = 0x7,
+    DEV_RESET = 0x8,
+    REQ_SENSE_DEXT = 0x0B,
+    RECALIBRATE_H = 0x10,
+    READ_DMA_EXT = 0x25,
+    READ_DMA_QUEUED_EXT = 0x26,
+    WRITE_DMA_EXT = 0x35,
+    WRITE_DMA_QUEUED_EXT = 0x36,
+    IDENTIFY = 0xEC
+}ATA_COMMAND;
 
 // just learned this!
 // putting a colon (:) and number after a struct
@@ -83,7 +102,42 @@ struct AHCI_PORT_S{
 
 typedef struct AHCI_PORT_S AHCI_PORT;
 
-struct AHCI_MMIO_S{
+struct AHCI_HOST_CAPABILITES{
+    uint8_t NP : 4; // number of ports supported by the HBA
+    bool SXS : 1; // supports external sata
+    bool EMS : 1; 
+    bool CCS : 1;
+    uint8_t NCS : 4; // number of command slots
+    bool PSC : 1;
+    bool SSC : 1;
+    bool PMQ : 1;
+    bool FBSS : 1;
+    bool SPM : 1;
+    bool SAM : 1;
+    uint8_t ISS : 4; // speed (0b0001 = 1.5Gbps 0b0010 = 3 Gbps 0b0011 = 6 Gbps)
+    bool SCLO : 1;
+    bool SAL : 1; // supports activity LED
+    bool SALP : 1;
+    bool SSS : 1;
+    bool SMPS : 1;
+    bool SSNTF : 1;
+    bool SNCQ : 1;
+    bool S64A : 1; // supports 64 bit addressing
+} __attribute__((packed));
+
+struct AHCI_GEN_HOST_CONTROL{
+    struct AHCI_HOST_CAPABILITES CAP;
+} __attribute__((packed));
+
+struct AHCI_BOHC{
+    bool BOS : 1;
+    bool OOS : 1;
+    bool SOOE : 1;
+    bool BB : 1;
+    uint32_t : 28;
+}__attribute__((packed));
+
+struct AHCI_MMIO{
     // generic host control
     uint32_t Host_Capabilities;
     uint32_t Global_Host_Control;
@@ -95,7 +149,7 @@ struct AHCI_MMIO_S{
     uint32_t Encloser_Management_Location;
     uint32_t Encloser_Managament_Control;
     uint32_t Extended_Host_Capabilities;
-    uint32_t Handoff_Status;
+    struct AHCI_BOHC BOHC;
 
     // reserved
 	uint8_t  Reserved[0xA0-0x2C];
@@ -110,7 +164,7 @@ struct AHCI_COMMAND_HEADER_S{
     // DWORD 0
     uint8_t CFL:5; // length of command fis measured in 32 bits
     uint8_t A:1; // ATAPI
-    uint8_t W:1; // 1 = write, 0 = read
+    uint8_t W:1; // 1 = device->memory, 0 = memory->device
     uint8_t P:1; // Prefetchable
 
     uint8_t R:1; // Reset
@@ -120,6 +174,7 @@ struct AHCI_COMMAND_HEADER_S{
 
     uint8_t PMP:4; // 0
     uint16_t PRDTL; // length of the PRDT in entries
+    // the PRDT is used to address DMA over non contiguous physical memory blocks.
 
     // DWORD 1
     volatile
@@ -143,7 +198,6 @@ struct AHCI_Physical_Region_Descriptor_S{
 	uint32_t i:1;		// Interrupt on completion
 }__attribute__((packed));
 
-typedef struct AHCI_Physical_Region_Descriptor_S AHCI_Physical_Region_Descriptor;
 
 struct AHCI_CMD_Table_S{
     uint8_t cfis[64];
@@ -152,10 +206,9 @@ struct AHCI_CMD_Table_S{
 
     uint8_t reserved[48];
 
-    AHCI_Physical_Region_Descriptor prdt_entry[32];
+    struct AHCI_Physical_Region_Descriptor* prdt_entry;
 }__attribute__((packed));
 
-typedef struct AHCI_MMIO_S AHCI_MMIO;
 typedef struct AHCI_COMMAND_HEADER_S AHCI_COMMAND_HEADER;
 typedef struct AHCI_CMD_Table_S AHCI_CMD_Table;
 

@@ -320,6 +320,7 @@ int FindFreeFileDescriptor(int PID){
  * @return Returns the PID
  */
 int RegisterTask(uint64_t base_vaddr, uint64_t entry_point, uint64_t page_count, uint8_t maxticks, uint64_t stack_start, uint64_t pml4){
+    virtualprint(KERNEL_T, "[task.reg] reg\n");
     int free = FindFreePID();
     if(free == TASK_COUNT+1){ return 1; }
     Task* cur_task = (Task*)&TaskManager[free];
@@ -358,6 +359,7 @@ int RegisterTask(uint64_t base_vaddr, uint64_t entry_point, uint64_t page_count,
  * @return Returns the PID
  */
 int RegisterTaskStrict(uint64_t base_vaddr, uint64_t entry_point, uint64_t page_count, uint8_t maxticks, uint64_t stack_start, uint64_t pml4, int pid){
+    virtualprint(KERNEL_T, "[task.reg] reg strict\n");
     Task* cur_task = (Task*)&TaskManager[pid];
     memset(cur_task, 0, sizeof(Task)); // zero out the task
     cur_task->MemoryData.BaseVirtualAddress = base_vaddr;
@@ -445,6 +447,8 @@ void LoadElf_GemFS(enum GemFS_DriveIDs DriveID, uint8_t Partition, uint64_t Bloc
 */
 void* LoadElf(uint8_t Drive, uint64_t LBA, size_t Program_Size){
     memset(Program_Buffer, 0, 0x1000);
+
+    virtualprint(KERNEL_T, "[task.load] load\n");
     
     #ifdef ELF_SANITY
         SetTextColor(LCYAN, BLACK);
@@ -640,6 +644,8 @@ void* LoadElf(uint8_t Drive, uint64_t LBA, size_t Program_Size){
     * @param Program_Size The size (in blocks) of the program
 */
 void* LoadElfStrict(uint8_t Drive, uint64_t LBA, size_t Program_Size, int pid, uint64_t NewPML4, char* argv[], int argc){
+    virtualprint(KERNEL_T, "[task.load] load strict\n");
+    
     memset(Program_Buffer, 0, 0x1000);
 
     #ifdef ELF_SANITY

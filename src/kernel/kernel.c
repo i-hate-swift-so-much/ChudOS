@@ -35,24 +35,11 @@ enum GemFS_DriveIDs correct_bootdrive(uint64_t boot_drive){
     }else if(boot_drive < 0x04){
         return F0+(boot_drive);
     }else{
-        printf("Unable to correct Boot Drive into a GemFS ID.\n");
-        asm volatile(
-            "int $0xFE\n"
-        );
-        asm volatile(
-            "cli\n"
-            "hlt\n"
-        );
+        printf("Unable to correct Boot Drive into a GemFS ID. (%x)\n", boot_drive);
     }
 }
 
 void kernel_startup(uint64_t boot_drive){
-    cls();
-
-    initVirtualTerminals(true);
-
-    virtualprint(KERNEL_T, "[boot] start\n");
-
     // set up the GDT, it's called "modular" because kernel code can safely change it willingly
     SetGDTEntry(0, 0, 0, 0, 0); // null entry
     SetGDTEntry(0, 0, GDT_Flags_Code, GDT_Access_Kernel_Code, 0x8); // kernel code
@@ -66,13 +53,21 @@ void kernel_startup(uint64_t boot_drive){
 
     LoadGDT();
 
-    virtualprint(KERNEL_T, "[boot.gdt] success\n");
-
     boot_drive &= 0xFF;
 
     InitMem();
     
+    initVGA();
+
     memcpy(&KernelTask->UserTSS, &ActiveTSS, sizeof(struct TSS));
+
+    cls();
+
+    initVirtualTerminals(true);
+
+    virtualprint(KERNEL_T, "[boot] start\n");
+
+    virtualprint(KERNEL_T, "[boot.gdt] success\n");
 
     virtualprint(KERNEL_T, "[boot.mem] success\n");
 
@@ -106,13 +101,14 @@ void kernel_startup(uint64_t boot_drive){
     ScanBusses();
     virtualprint(KERNEL_T, "[boot.pci] success\n");
 
-    virtualprint(KERNEL_T, "[boot.ahci] init\n");
     if(AHCI_Controller == NULL){ 
-        virtualprint(KERNEL_T, "[boot.ahci] no drive\n"); 
+        virtualprint(KERNEL_T, "[boot.ahci] no ahci\n"); 
     }else{
+        virtualprint(KERNEL_T, "[boot.ahci] init\n");
         AHCI_Init(AHCI_Controller);
-        virtualprint(KERNEL_T, "[boot.ahci] success\n");
     }
+
+    halt();
 
     FLOPPY_Check_FDC();
 
@@ -141,6 +137,8 @@ void kernel_startup(uint64_t boot_drive){
         virtualprint(KERNEL_T, "[boot.floppy] failure\n");
     }
     
+    FLOPPY_Read_LBA(0, 628, VIRTUAL_MEMORY_BARRIER+0x110000, 128);
+    
     virtualprint(KERNEL_T, "[boot.gemfs] init\n");
 
     GemFS_Init(boot_driveid);
@@ -149,6 +147,8 @@ void kernel_startup(uint64_t boot_drive){
 
     #ifdef TEST_USER
         SetUpShell();
+    #else
+        panic();
     #endif
 
     barrier();

@@ -107,6 +107,9 @@ void TimerInterrupt(InterruptRegisters* frame){
 
     if(cur_task->UsedTicks >= cur_task->MaxTicks || cur_task->ProcessState == KILL_PROCESS_STATE || cur_task->ProcessState == WAITING_PROCESS_STATE){
         barrier();
+        if(cur_pid == 2){
+            virtualprint(KERNEL_T, "[timer] was pid 2\n");
+        }
 
         cur_task->UsedTicks = 0;
         if(cur_task->ProcessState == KILL_PROCESS_STATE){
@@ -115,6 +118,10 @@ void TimerInterrupt(InterruptRegisters* frame){
             free_task_memory(cur_pid);
         }
         int next_pid = find_next_task(cur_pid);
+
+        if(next_pid == 2){
+            virtualprint(KERNEL_T, "[timer] now pid 2\n");
+        }
 
         volatile Task* NextTask = (volatile Task*)&TaskManager[next_pid];
 

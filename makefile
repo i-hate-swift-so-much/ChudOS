@@ -37,8 +37,8 @@ kernel_flat := obj/kernel.bin
 kernel_entry_src := src/kernel/kernel_entry.s
 kernel_entry_obj := obj/kernel_entry.o
 
-drivers_src := src/kernel/drivers/Display/VGA.c src/kernel/Libraries/std.c src/kernel/drivers/LowLevel/IDT.c src/kernel/drivers/Devices/PS2/Keyborad.c src/kernel/drivers/Devices/PIC.c src/kernel/drivers/Userland/syscall.c src/kernel/drivers/LowLevel/interrupt_stubs.s src/kernel/Libraries/Math.c src/kernel/drivers/LowLevel/Memory.c src/kernel/drivers/ErrorHandling/KernelPanic.c src/kernel/drivers/LowLevel/Power.c src/kernel/drivers/ErrorHandling/Exceptions.c src/kernel/drivers/LowLevel/Timer.c src/kernel/drivers/Devices/Disk/AHCI.c src/kernel/drivers/Userland/Tasks.c src/kernel/drivers/PCI.c src/kernel/drivers/LowLevel/GDT.c src/kernel/Display/VGA_E.c src/kernel/drivers/Devices/Disk/Floppy src/kernel/drivers/filesys/gemfs.c src/kernel/drivers/Userland/VirtualFiles.c src/kernel/drivers/Userland/terminal.c sr/kernel/drivers/Userland/signals.c
-drivers_obj := obj/VGA.elf obj/std.elf obj/Keyboard.elf obj/IDT.elf obj/PIC.elf obj/syscall.elf obj/interrupt_stubs.elf obj/Math.elf obj/Memory.elf obj/KernelPanic.elf obj/Power.elf obj/Exceptions.elf obj/Timer.elf obj/AHCI.elf obj/Tasks.elf obj/PCI.elf obj/GDT.elf obj/VGA_E.elf obj/Floppy.elf obj/gemfs.elf obj/VirtualFiles.elf obj/terminal.elf obj/signals.elf
+drivers_src := src/kernel/drivers/Display/VGA.c src/kernel/Libraries/std.c src/kernel/drivers/LowLevel/IDT.c src/kernel/drivers/Devices/PS2/Keyborad.c src/kernel/drivers/Devices/PIC.c src/kernel/drivers/Userland/syscall.c src/kernel/drivers/LowLevel/interrupt_stubs.s src/kernel/Libraries/Math.c src/kernel/drivers/LowLevel/Memory.c src/kernel/drivers/ErrorHandling/KernelPanic.c src/kernel/drivers/LowLevel/Power.c src/kernel/drivers/ErrorHandling/Exceptions.c src/kernel/drivers/LowLevel/Timer.c src/kernel/drivers/Devices/Disk/AHCI.c src/kernel/drivers/Userland/Tasks.c src/kernel/drivers/PCI.c src/kernel/drivers/LowLevel/GDT.c src/kernel/Display/VGA_E.c src/kernel/drivers/Devices/Disk/Floppy src/kernel/drivers/filesys/gemfs.c src/kernel/drivers/Userland/VirtualFiles.c src/kernel/drivers/Userland/terminal.c sr/kernel/drivers/Userland/signals.c src/kernel/drivers/ErrorHandling/ErrorCodes.c
+drivers_obj := obj/VGA.elf obj/std.elf obj/Keyboard.elf obj/IDT.elf obj/PIC.elf obj/syscall.elf obj/interrupt_stubs.elf obj/Math.elf obj/Memory.elf obj/KernelPanic.elf obj/Power.elf obj/Exceptions.elf obj/Timer.elf obj/AHCI.elf obj/Tasks.elf obj/PCI.elf obj/GDT.elf obj/VGA_E.elf obj/Floppy.elf obj/gemfs.elf obj/VirtualFiles.elf obj/terminal.elf obj/signals.elf obj/ErrorCodes.elf
 drivers_flat := obj/drivers.bin
 
 all: clean build_boot boot_bin build_kernel link_kernel
@@ -118,6 +118,7 @@ build_kernel ${kernel_src} ${drivers_src} ${kernel_entry_src}:
 	${c} src/kernel/drivers/Userland/VirtualFiles.c ${cflags} -o obj/VirtualFiles.elf
 	${c} src/kernel/drivers/Userland/terminal.c ${cflags} -o obj/terminal.elf
 	${c} src/kernel/drivers/Userland/signals.c ${cflags} -o obj/signals.elf
+	${c} src/kernel/drivers/ErrorHandling/ErrorCodes.c ${cflags} -o obj/ErrorCodes.elf
 
 link_kernel ${kernel_obj} ${drivers_obj}:
 	${ld} -TkernelSetup64.ld -o obj/kernel_setup.elf obj/kernel_setup_entry.o obj/kernel_setup.o

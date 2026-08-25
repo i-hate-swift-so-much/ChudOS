@@ -313,17 +313,17 @@ load_kernel_floppy:
 
     mov dword [floppy_target_address], 0x10000
 
-    mov [floppy_read_loop], 381
+    mov [floppy_read_loop], 384
     .loop:
-    mov al, [floppy_read_loop]
-    cmp al, 0
+    mov ax, [floppy_read_loop]
+    cmp ax, 0
     je load_kernel_floppy.loop_success
 
     mov si, 3 ; for each sector read, we can retry 3 times
     .retry:
 
-    mov al, [target_sector]
-    cmp al, [FloppyInfoStruct.sector_max]
+    mov bl, [target_sector]
+    cmp bl, [FloppyInfoStruct.sector_max]
     jg load_kernel_floppy.over_sector
     jmp load_kernel_floppy.valid_sector
 
@@ -380,8 +380,8 @@ load_kernel_floppy:
         mov [target_sector], al
 
         mov al, [floppy_read_loop]
-        sub al, 1
-        mov [floppy_read_loop], al
+        sub ax, 1
+        mov [floppy_read_loop], ax
 
         mov dword eax, [floppy_target_address]
         add eax, 512
@@ -744,7 +744,7 @@ upper_memory: resq 1
 set_mode: resb 2
 drive_boot: resb 1
 
-floppy_read_loop: resb 1
+floppy_read_loop: resb 2
 
 target_cylinder: resb 2
 target_head: resb 1

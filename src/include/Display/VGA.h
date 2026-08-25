@@ -37,6 +37,7 @@ struct VGA_Queue_Character_S{
 
 typedef struct VGA_Queue_Character_S VGA_Queue_Character;
 
+void initVGA();
 void SetTextColor(uint8_t foreground, uint8_t background);
 void WriteCharacter(char Character, uint8_t x, uint8_t y);
 unsigned char ReadCharacter(int x, int y);

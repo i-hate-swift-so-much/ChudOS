@@ -18,26 +18,26 @@ int snapshotX = 0;
 int snapshotY = 0;
 
 void print(const char* toPrint, int length){
-        if(length == 0 || length == NULL){ length = calculate_string_length(toPrint); }
-        for (int i = 0; i < length; i++){
-            if(curX > 79){ curX = 0; curY++; }
-            if(curX == 79 && curY == 24) { Scroll(1); }
-            char curChar = toPrint[i];
-            if(curChar == ' '){
-                WriteCharacter(' ', curX, curY);
-                char curWordScan;
-                int nextWordLength = 0;
-                for(int b = i+1; b < length; b++){
-                    curWordScan = toPrint[b];
-                    nextWordLength++;
-                    if(curWordScan == ' '){
-                        break;
-                    }
+    if(length == 0 || length == NULL){ length = calculate_string_length(toPrint); }
+    for (int i = 0; i < length; i++){
+        if(curX > 79){ curX = 0; curY++; }
+        if(curX == 79 && curY == 24) { Scroll(1); }
+        char curChar = toPrint[i];
+        if(curChar == ' '){
+            WriteCharacter(' ', curX, curY);
+            char curWordScan;
+            int nextWordLength = 0;
+            for(int b = i+1; b < length; b++){
+                curWordScan = toPrint[b];
+                nextWordLength++;
+                if(curWordScan == ' '){
+                    break;
                 }
-                if(nextWordLength+curX > 79){
-                    NewLine();
-                }else{
-                    curX++;
+            }
+            if(nextWordLength+curX > 79){
+                NewLine();
+            }else{
+                curX++;
                 }
             }else if(curChar == '\n'){
                 NewLine();

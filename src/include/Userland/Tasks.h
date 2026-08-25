@@ -3,7 +3,7 @@
 #include "Libraries/Math.h"
 #include "Libraries/std.h"
 #include "filesys/gemfs.h"
-
+#include "Userland/terminal.h"
 
 // Defines how many cycles each level of priority can use
 #define SUDO_PRIORITY 40

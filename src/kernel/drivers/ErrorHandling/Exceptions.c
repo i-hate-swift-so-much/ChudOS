@@ -58,7 +58,7 @@ void HandlePageFault(InterruptRegisters* regs){
         !mem_access_ok(saved_virt, cur_pid) &&
         virtual_address < (stack_low - 0x4000)
     ){
-        printf("Kill %i for address %x\n", cur_pid, saved_virt);
+        virtualprint(KERNEL_T, "[exc.pf] kill task\n");
         DumpTaskState(cur_pid);
         KillTask(cur_pid);
         SignalOwner(cur_task, CHILD_WAIT_EXIT, -1);
@@ -148,10 +148,11 @@ void GeneralProtectionFault(InterruptRegistersError* regs){
     int cur = TASKMGR_get_current();
 
     if(cur == 0){
-        printf("FATAL #GF FROM KERNEL");
+        virtualprint(KERNEL_T, "[exc.gf] kernel fail\n");
         KernelPanic(regs);
     }
 
+    virtualprint(KERNEL_T, "[exc.gf] fatal. kill task\n");
     KillTask(cur);
     InterruptRegisters regs_i = ErrToInt(*regs);
     ForceSwitch(&regs_i);
@@ -161,11 +162,12 @@ void InvalidOpcode(InterruptRegistersError* regs){
     int cur = TASKMGR_get_current();
 
     if(cur == 0){
-        printf("FATAL CORRUPTED OPCODE FROM KERNEL\n");
+        virtualprint(KERNEL_T, "[exc.op] fatal kernel\n");
         KernelPanic(regs);
     }
 
     // kill the task that the opcode originated from
+    virtualprint(KERNEL_T, "[exc.op] fatal. kill task\n");
     KillTask(cur);
     InterruptRegisters regs_i = ErrToInt(*regs);
     ForceSwitch(&regs_i);

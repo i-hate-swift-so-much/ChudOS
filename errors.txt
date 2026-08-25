@@ -1,0 +1,14 @@
+This is a list of known errors which I've encountered in development of the shell, some of which are totally the kernel's fault.
+I am using my own CVE ID type thing for this, formated like CLASS-DATE-OCCURENCE. DATE is in YYYY/MM/DD
+
+1. MEM-20260825-0001
+    This bug is a memory leak within the kernel for freeing tasks. When the user issues the mem command in shell before running a task, then runs a task,
+    then checks mem again, the total used memory of the system increases by about 12 KiB iirc.
+    NOTE: The measurement of memory is directly calculated from PhysicalPagesUsed in LowLevel/Memory.h
+
+    STATUS: REASON POSSIBLY KNOWN, NOT FIXED
+
+2. FORK-20260825-0001
+    This bug has a specific pattern to it, and testing through replacing code in the shell does show that this is probably the fault of the kernel.
+
+    STATUS: INVESTIGATING, NOT FIXED

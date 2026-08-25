@@ -6,6 +6,7 @@
 #include "LowLevel/Memory.h"
 #include "Userland/Tasks.h"
 #include "KernelPanic.h"
+#include "Userland/terminal.h"
 
 void HandlePageFault(InterruptRegisters* regs);
 void GeneralProtectionFault(InterruptRegistersError* regs);

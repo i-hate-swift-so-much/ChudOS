@@ -158,8 +158,6 @@ fill_pml4_l:
     mov [edi+4], edx ; edx is zero
     pop eax
 
-    ret
-
     .loop_code:  
         cmp ecx, 0
         je fill_pml4_l.end_loop
@@ -193,8 +191,6 @@ fill_pml4_h:
     mov [edi+4], edx ; edx is zero
     pop eax
 
-    ret
-
     .loop_code:  
         cmp ecx, 0
         je fill_pml4_h.end_loop
@@ -225,8 +221,6 @@ fill_pdpt:
     mov [edi], eax
     mov [edi+4], edx ; edx is zero
     pop eax
-
-    ret
 
     .fill_loop:
         cmp ecx, 0

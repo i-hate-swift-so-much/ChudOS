@@ -323,7 +323,7 @@ void* alloc_page(PageDetails* page){
         printf("Critical Memory Failure, attempted to map physical memory above total_mem\n");
         printf("Physical Address: %x | total_mem: %x\n", page->physical_address, total_mem);
         
-        panic();
+        halt();
     }
 
     if((phys_frames[page->physical_address/0x1000].flags & 0b10) == 0b10){ 

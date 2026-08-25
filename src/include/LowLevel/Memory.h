@@ -156,6 +156,7 @@ volatile struct Task_S{
     InterruptRegisters SavedRegisters; // grabbed from "IDT.h", also used when an interrupt is triggered from userland
     uint8_t MaxTicks; // how many cycles a task can run for, tasks run with sudo have 40, normal user tasks 20, and background taks 10
     uint8_t UsedTicks; // this is so the scheduler can keep track of how many ticks the program has been running for before switching
+    uint64_t TotalTicks; // this counts the total amount of ticks in a given timeframe
     uint8_t ProcessState; // defines how the program is running. e.g. active, asleep, new, ready, blocked.
     uint16_t WaitingReason; // defines why the program is waiting if the state is set to that.
     enum ChildWaitReasons ChildWaitingReason; // if the task is waiting for a child to do shit, this is why.

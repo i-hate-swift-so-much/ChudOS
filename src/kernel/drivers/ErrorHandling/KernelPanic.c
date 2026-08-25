@@ -10,7 +10,12 @@ void KernelPanic(InterruptRegistersError* regs){
         : "=r"(CR3) : :
     );
 
-    printf("HAPPENING ALERT FROM PID %i!!!!\n\t", TASKMGR_get_current());
+    SetTextColor(WHITE, BLUE);
+
+
+    cls();
+
+    printf("ChudOS Kernel Panic\n");
     printf("General Registers:\n\t\t");
     printf("RAX: %x ", regs->rax);
     printf("RBX: %x ", regs->rbx);
@@ -18,12 +23,6 @@ void KernelPanic(InterruptRegistersError* regs){
     printf("RDX: %x\n\t\t", regs->rdx);
     printf("RDI: %x ", regs->rdi);
     printf("RSI: %x\n\t\t", regs->rsi);
-    printf("r10: %x\n\t\t", regs->r10);
-    printf("r11: %x\n\t\t", regs->r11);
-    printf("r12: %x\n\t\t", regs->r12);
-    printf("r13: %x\n\t\t", regs->r13);
-    printf("r14: %x\n\t\t", regs->r14);
-    printf("r15: %x\n\t", regs->r15);
     printf("Special Registers:\n\t\t");
     printf("RIP: %x\n\t\t", regs->rip);
     printf("RSP: %x\n\t\t", regs->rsp);
